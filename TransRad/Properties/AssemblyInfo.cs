@@ -5,8 +5,8 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("ObjectViewer")]
-[assembly: AssemblyProduct("ObjectViewer")]
+[assembly: AssemblyTitle("TransRad")]
+[assembly: AssemblyProduct("TransRad")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyCompany("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("77d09b9d-49ec-4383-b17d-e9e0e7ba8bc6")]
+[assembly: Guid("29c8ac7c-96e6-488b-9d52-55ffcab4badf")]
 
 // Version information for an assembly consists of the following four values:
 //

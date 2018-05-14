@@ -1,45 +1,34 @@
 ﻿/*
- * Author: Max Gulde
- * Last Update: 2018-02-06
+ * 
+ * Class to manage keyboard input
+ * 
  */
-
-#region using
 
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System.Diagnostics;
 
-#endregion
-
-namespace ObjectViewer
+namespace TransRad
 {
     public static class Input
     {
-
-        #region settings
-
-        public static int tKeyDelay = 200;
-
-        #endregion
-
         #region fields
 
         static Stopwatch sw_KeyDelay;
-        static Stopwatch sw_SimDelay;
 
         static int MouseWheelPosOld;
 
         #endregion
 
-        public static void Initialize()
+        public static void InitInput()
         {
             sw_KeyDelay = new Stopwatch();
             sw_KeyDelay.Start();
-            sw_SimDelay = new Stopwatch();
-            sw_SimDelay.Start();
 
             MouseWheelPosOld = Mouse.GetState().ScrollWheelValue;
         }
+
+        #region general
 
         public static bool Exit
         {
@@ -65,11 +54,27 @@ namespace ObjectViewer
             }
         }
 
+        public static bool LoadSettings
+        {
+            get
+            {
+                return Keyboard.GetState().IsKeyDown(Keys.F9) && KeyDelay;
+            }
+        }
+
+        public static bool SaveSettings
+        {
+            get
+            {
+                return Keyboard.GetState().IsKeyDown(Keys.F5) && KeyDelay;
+            }
+        }
+
         static bool KeyDelay
         {
             get
             {
-                if (sw_KeyDelay.ElapsedMilliseconds >= tKeyDelay)
+                if (sw_KeyDelay.ElapsedMilliseconds >= Settings.KeyDelay)
                 {
                     sw_KeyDelay.Restart();
                     return true;
@@ -81,24 +86,7 @@ namespace ObjectViewer
             }
         }
 
-        public static int Zoom
-        {
-            get
-            {
-                int MouseWheelPos = Mouse.GetState().ScrollWheelValue;
-                int diff = MouseWheelPos - MouseWheelPosOld;
-                MouseWheelPosOld = Mouse.GetState().ScrollWheelValue;
-                return diff;
-            }
-        }
-
-        public static bool SwitchView
-        {
-            get
-            {
-                return Keyboard.GetState().IsKeyDown(Keys.Space) && KeyDelay;
-            }
-        }
+        #endregion
 
         #region internal
 
