@@ -7,7 +7,7 @@
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{8E9698CF-929F-43BD-9A2D-AF87EB3ABC77}</ProjectGuid>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>TransRad</RootNamespace>
     <AssemblyName>TransRad</AssemblyName>
@@ -40,9 +40,13 @@
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
   <ItemGroup>
     <Compile Include="Code\Camera.cs" />
     <Compile Include="Code\Input.cs" />
+    <Compile Include="Code\ModelTools.cs" />
     <Compile Include="Code\Settings.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Program.cs" />

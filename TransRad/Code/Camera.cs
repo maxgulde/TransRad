@@ -1,5 +1,18 @@
-﻿using System;
+﻿/* Radiate Energy Transport Tests Project
+ * 
+ * Camera control.
+ * 
+ * Author: Max Gulde
+ * Last Update: 2018-05-14
+ * 
+ */
+
+#region using
+
+using System;
 using Microsoft.Xna.Framework;
+
+#endregion
 
 namespace TransRad
 {
@@ -12,36 +25,23 @@ namespace TransRad
         public Matrix View { get; private set; }
         public Matrix World { get; private set; }
 
-        Vector3 Target;
-
         public float Az { get; private set; }
         public float El { get; private set; }
-        const float MaxAz = 360;
-        const float MaxEl = 89.999f;
-        const float NearPlane = 0.01f;
-        const float FarPlane = 10;
-        const float ElevationOffset = 0;
-        const float AzimuthOffset = 0;
-
-        float Size;
+        public float ImageSize { get; private set; }
 
         #endregion
 
-        public Camera(float size)
+        public Camera(float imageSize)
         {
             // set view and projection matrices
-            Projection = Matrix.Identity;
-            View = Matrix.Identity;
             World = Matrix.Identity;
-
-            // Target is always center
-            Target = Vector3.Zero;
+            View = Matrix.Identity;
+            Projection = Matrix.Identity;
 
             // set elevation and azimuth
             Az = 0;
             El = 0;
-
-            Size = size;
+            ImageSize = imageSize;
 
             // update
             Update();
@@ -51,13 +51,20 @@ namespace TransRad
         {
             // compute position from angles
             Vector3 Position;
-            Position.X = (float)(Math.Cos(MathHelper.ToRadians(-El + ElevationOffset)) * Math.Cos(MathHelper.ToRadians(Az + AzimuthOffset)));
-            Position.Y = (float)(Math.Cos(MathHelper.ToRadians(-El + ElevationOffset)) * Math.Sin(MathHelper.ToRadians(Az + AzimuthOffset)));
-            Position.Z = (float)Math.Sin(MathHelper.ToRadians(-El + ElevationOffset));
+            Position.X = (float)(Math.Cos(MathHelper.ToRadians(-El + Settings.C_ElevationOffset)) * Math.Cos(MathHelper.ToRadians(Az + Settings.C_AzimuthOffset)));
+            Position.Y = (float)(Math.Cos(MathHelper.ToRadians(-El + Settings.C_ElevationOffset)) * Math.Sin(MathHelper.ToRadians(Az + Settings.C_AzimuthOffset)));
+            Position.Z = (float)Math.Sin(MathHelper.ToRadians(-El + Settings.C_ElevationOffset));
 
+            Vector3 Target = Vector3.Zero;
+            SetPositionTarget(Position, Target, ImageSize);
+        }
+
+        public void SetPositionTarget(Vector3 position, Vector3 target, float imageSize)
+        {
             // set view and projection matrices
-            View = Matrix.CreateLookAt(Position, Target, Vector3.Forward);
-            Projection = Matrix.CreateOrthographic(Size, Size, NearPlane, FarPlane);
+            View = Matrix.CreateLookAt(position, target, Vector3.Forward);
+            Projection = Matrix.CreateOrthographic(imageSize, imageSize, Settings.C_NearPlane, Settings.C_FarPlane);
+            //Projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, NearPlane, FarPlane);
         }
 
         public void Rotate(float dAz, float dEl)
@@ -65,10 +72,10 @@ namespace TransRad
             Az += dAz;
             El += dEl;
             // clamp
-            Az = Az > MaxAz ? Az - 360 : Az;
-            Az = Az < -MaxAz ? Az + 360 : Az;
-            El = El > MaxEl ? MaxEl : El;
-            El = El < -MaxEl ? -MaxEl : El;
+            Az = Az > Settings.C_MaxAz ? Az - 360 : Az;
+            Az = Az < -Settings.C_MaxAz ? Az + 360 : Az;
+            El = El > Settings.C_MaxEl ? Settings.C_MaxEl : El;
+            El = El < -Settings.C_MaxEl ? -Settings.C_MaxEl : El;
 
             Update();
         }

@@ -1,12 +1,19 @@
-﻿/*
+﻿/* Radiate Energy Transport Tests Project
  * 
- * Class to manage keyboard input
+ * Mouse and keyboard input
+ * 
+ * Author: Max Gulde
+ * Last Update: 2018-05-14
  * 
  */
+
+#region using
 
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System.Diagnostics;
+
+#endregion
 
 namespace TransRad
 {
@@ -20,6 +27,8 @@ namespace TransRad
 
         #endregion
 
+        #region init
+
         public static void InitInput()
         {
             sw_KeyDelay = new Stopwatch();
@@ -27,6 +36,8 @@ namespace TransRad
 
             MouseWheelPosOld = Mouse.GetState().ScrollWheelValue;
         }
+
+        #endregion
 
         #region general
 
@@ -54,27 +65,24 @@ namespace TransRad
             }
         }
 
-        public static bool LoadSettings
+        public static bool NextTarget
         {
             get
             {
-                return Keyboard.GetState().IsKeyDown(Keys.F9) && KeyDelay;
+                return Keyboard.GetState().IsKeyDown(Keys.Space) && KeyDelay;
             }
         }
 
-        public static bool SaveSettings
-        {
-            get
-            {
-                return Keyboard.GetState().IsKeyDown(Keys.F5) && KeyDelay;
-            }
-        }
+
+        #endregion
+
+        #region internal
 
         static bool KeyDelay
         {
             get
             {
-                if (sw_KeyDelay.ElapsedMilliseconds >= Settings.KeyDelay)
+                if (sw_KeyDelay.ElapsedMilliseconds >= Settings.I_KeyDelay)
                 {
                     sw_KeyDelay.Restart();
                     return true;
@@ -85,10 +93,6 @@ namespace TransRad
                 }
             }
         }
-
-        #endregion
-
-        #region internal
 
         static bool Shift
         {
