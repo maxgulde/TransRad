@@ -131,8 +131,8 @@ namespace TransRad
                 Vector3 CameraTarget = Tools.GetMeshCenter(Model.Meshes[TargetIdx]);
                 ViewportSize = Tools.GetMeshDiameter(Model.Meshes[TargetIdx]);
                 C_Obj.SetPositionTarget(CameraPosition, CameraTarget, ViewportSize);
-                Console.WriteLine("New target: " + TargetIdx);
-                Console.WriteLine("\tNew viewport size: " + ViewportSize);
+                //Console.WriteLine("New target: " + TargetIdx);
+                //Console.WriteLine("\tNew viewport size: " + ViewportSize);
                 TargetIdxOld = TargetIdx;
             }
 
@@ -143,7 +143,6 @@ namespace TransRad
                 TargetIdx = TargetIdx >= NumberOfMeshes ? 0 : TargetIdx;
                 TargetIdx += TargetIdx == SourceIdx ? 1 : 0;
             }
-
 
             MouseOldPosition = Input.MousePosition;
             base.Update(gameTime);
@@ -173,13 +172,14 @@ namespace TransRad
 
         void DrawModel(Camera cam, int excludeIdx = -1)
         {
-            int i = 0;
+            int Idx = 0;
             foreach (ModelMesh mesh in Model.Meshes)
             {
-                if (i != excludeIdx)
+                if (Idx != excludeIdx)
                 {
-                    DrawModelPart(cam, i++);
+                    DrawModelPart(cam, Idx);
                 }
+                Idx++;
             }
         }
 
@@ -213,12 +213,12 @@ namespace TransRad
 
                 while (!occQuery.IsComplete)
                 {
-                    // do nothing until query is complete
+                    // Do nothing until query is complete.
                 }
 
                 float ViewportArea = ViewportSize * ViewportSize;
 
-                Console.WriteLine("Seeing " + (occQuery.PixelCount / Settings.D_PixelPerViewport * ViewportArea * 1000000).ToString("F3") + " mm^2 of target " + partIdx + ".");
+                Console.WriteLine("Seeing " + (occQuery.PixelCount / (float)Settings.D_PixelPerViewport * ViewportArea * 10000).ToString("F1") + " cm^2 of target " + partIdx + ".");
             }
         }
 

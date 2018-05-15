@@ -32,7 +32,7 @@ namespace TransRad
         public static float C_RotSpeedEl = 1;
         public static float C_MaxAz = 360;
         public static float C_MaxEl = 89.999f;
-        public static float C_NearPlane = 0.01f;
+        public static float C_NearPlane = 0.001f;
         public static float C_FarPlane = 10;
         public static float C_ElevationOffset = 0;
         public static float C_AzimuthOffset = 0;
