@@ -9,6 +9,7 @@
 
 #region using
 
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -26,6 +27,22 @@ namespace TransRad
         public static float GetMeshDiameter(ModelMesh m)
         {
             return 2 * m.BoundingSphere.Radius;
+        }
+
+        public static void PrintMatrix(float[,] m)
+        {
+            int Rows = m.GetLength(0);
+            int Cols = m.GetLength(1);
+
+            for (int cc = 0; cc < Cols; cc++)
+            {
+                for (int rr = 0; rr < Rows; rr++)
+                {
+                    Console.Write(m[cc, rr] + " , ");
+                }
+                Console.WriteLine();
+            }
+
         }
 
     }

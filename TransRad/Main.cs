@@ -10,9 +10,10 @@
 #region using
 
 using System;
+using System.Diagnostics;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System.Diagnostics;
 
 #endregion
 
@@ -29,17 +30,17 @@ namespace TransRad
         Camera C_Free, C_Obj;
         SpriteFont Font;
         SpriteBatch SBatch;
-
         Model Model;
-
         Point MouseOldPosition;
 
-        int SourceIdx = 0;
-        int TargetIdx = 1;
-        int TargetIdxOld = -1;
         int NumberOfMeshes;
+        int IdxSource = -1;
+        int IdxTarget = -1;
         float ViewportSize = -1;
-        bool MeasureArea = false;
+        bool MeasureArea = true;
+        bool StopMeasurement = false;
+        float[,] Areas;
+        List<string> ObjNames;
 
         Stopwatch SW_FPS;
         int t_FPS;
@@ -51,34 +52,43 @@ namespace TransRad
 
         public Main()
         {
-            GFX = new GraphicsDeviceManager(this);
-            GFX.GraphicsProfile = GraphicsProfile.HiDef;
+            GFX = new GraphicsDeviceManager(this)
+            {
+                GraphicsProfile = GraphicsProfile.HiDef
+            };
 
             Content.RootDirectory = "Content";
         }
 
         protected override void Initialize()
         {
+            // Set resolution
             GFX.PreferredBackBufferWidth = Settings.D_ScreenWidth;
             GFX.PreferredBackBufferHeight = Settings.D_ScreenHeight;
             GFX.SynchronizeWithVerticalRetrace = false;
             GFX.ApplyChanges();
 
+            // Create viewports
             VP_Complete = new Viewport(0, 0, Settings.D_ScreenWidth, Settings.D_ScreenHeight);
             VP_Free = new Viewport(0, 0, Settings.D_ViewportSize, Settings.D_ScreenHeight);
             VP_Obj = new Viewport(Settings.D_ViewportSize, 0, Settings.D_ViewportSize, Settings.D_ScreenHeight);
 
-            C_Free = new Camera(1);
-            C_Obj = new Camera(1);
+            // Create cameras
+            C_Free = new Camera(Settings.D_DefaultImageSize);
+            C_Obj = new Camera(Settings.D_DefaultImageSize);
 
+            // Create sprite batch for font display
             SBatch = new SpriteBatch(GraphicsDevice);
 
+            // Hide mouse, disable update sync
             IsMouseVisible = true;
             IsFixedTimeStep = false;
 
+            // Init input
             Input.InitInput();
             MouseOldPosition = Input.MousePosition;
 
+            // Start stopwatch
             SW_FPS = new Stopwatch();
 
             base.Initialize();
@@ -90,21 +100,26 @@ namespace TransRad
 
         protected override void LoadContent()
         {
+            // Loading assets
             Model = Content.Load<Model>("TestObj1");
             Effect = Content.Load<Effect>("Default");
             Font = Content.Load<SpriteFont>("Info");
 
+            // Analysing model
             NumberOfMeshes = Model.Meshes.Count;
             Console.WriteLine("Loading model with " + NumberOfMeshes + " meshes.");
-
+            if (NumberOfMeshes < 2)
+            {
+                Console.WriteLine("### Error ### Not enough meshed found in model.");
+            }
+            ObjNames = new List<string>();
             int i = 0;
             foreach (ModelMesh m in Model.Meshes)
             {
                 Console.WriteLine("Mesh " + i + " <" + m.Name + ">");
-                if (string.Compare(m.Name, "Source", true) == 0)
-                {
-                    SourceIdx = i;
-                }
+                // Remember model name
+                ObjNames.Add(m.Name);
+                // Apply custom effect to each mesh
                 foreach (ModelMeshPart p in m.MeshParts)
                 {
                     p.Effect = Effect;
@@ -112,6 +127,15 @@ namespace TransRad
                 i++;
             }
 
+            // Creating area matrix
+            Areas = new float[NumberOfMeshes, NumberOfMeshes];
+            Console.WriteLine("Created " + NumberOfMeshes + " x " + NumberOfMeshes + " view factor matrix.");
+
+            // Set start indices
+            IdxSource = 0;
+            IdxTarget = 0;
+
+            // Start performance counters
             SW_FPS.Start();
             t_FPS = 0;
             t_MaxFPS = 0;
@@ -137,7 +161,7 @@ namespace TransRad
                 SW_FPS.Restart();
             }
 
-            // Camera control
+            // Camera control for left viewport)
             if (Input.ClickL && MouseOldPosition != Input.MousePosition)
             {
                 Point dRot = MouseOldPosition - Input.MousePosition;
@@ -147,28 +171,18 @@ namespace TransRad
                 }
             }
 
-            // Fix view for area evaluation
-            MeasureArea = TargetIdx != TargetIdxOld;
+            // Fix view for area evaluation in right viewport
             if (MeasureArea)
             {
-                Vector3 CameraPosition = Tools.GetMeshCenter(Model.Meshes[SourceIdx]);
-                Vector3 CameraTarget = Tools.GetMeshCenter(Model.Meshes[TargetIdx]);
-                ViewportSize = Tools.GetMeshDiameter(Model.Meshes[TargetIdx]);
+                Vector3 CameraPosition = Tools.GetMeshCenter(Model.Meshes[IdxSource]);
+                Vector3 CameraTarget = Tools.GetMeshCenter(Model.Meshes[IdxTarget]);
+                ViewportSize = Tools.GetMeshDiameter(Model.Meshes[IdxTarget]);
                 C_Obj.SetPositionTarget(CameraPosition, CameraTarget, ViewportSize);
-                //Console.WriteLine("New target: " + TargetIdx);
-                //Console.WriteLine("\tNew viewport size: " + ViewportSize);
-                TargetIdxOld = TargetIdx;
-            }
-
-            // Next target
-            if (Input.NextTarget)
-            {
-                TargetIdx++;
-                TargetIdx = TargetIdx >= NumberOfMeshes ? 0 : TargetIdx;
-                TargetIdx += TargetIdx == SourceIdx ? 1 : 0;
+                Console.WriteLine("Viewing " + ObjNames[IdxSource] + " (" + IdxSource + ") -> " + ObjNames[IdxTarget] + " (" + IdxTarget + ")");
             }
 
             MouseOldPosition = Input.MousePosition;
+
             base.Update(gameTime);
         }
 
@@ -187,11 +201,32 @@ namespace TransRad
             // Draw obj view
             GraphicsDevice.Viewport = VP_Obj;
             // Whole scene, without source
-            DrawCompleteModel(C_Obj, SourceIdx);
+            DrawCompleteModel(C_Obj, !StopMeasurement);
             // Only target
             if (MeasureArea)
             {
-                DrawMeshWithOcclusion(Model.Meshes[TargetIdx], C_Obj, TargetIdx);
+                DrawMeshWithOcclusion(Model.Meshes[IdxTarget], C_Obj, IdxTarget);
+            }
+
+            // Advance indices
+            IdxTarget++;
+            if (IdxTarget >= NumberOfMeshes)
+            {
+                IdxSource++;
+                IdxTarget = 0;  // Full matrix to check symmetry
+            }
+            if (IdxSource >= NumberOfMeshes)
+            {
+                MeasureArea = false;
+            }
+
+            // Print out matrix
+            if (!MeasureArea && !StopMeasurement)
+            {
+                Tools.PrintMatrix(Areas);
+                StopMeasurement = true;
+                IdxSource = -1;
+                IdxTarget = -1;
             }
 
             // Draw FPS counter
@@ -207,12 +242,12 @@ namespace TransRad
 
 
         // Draw the complete model / scene
-        void DrawCompleteModel(Camera cam, int excludePartIdx = -1)
+        void DrawCompleteModel(Camera cam, bool excludeSource = false)
         {
             int Idx = 0;
             foreach (ModelMesh mesh in Model.Meshes)
             {
-                if (Idx != excludePartIdx)
+                if (!excludeSource || Idx != IdxSource)
                 {
                     DrawMesh(mesh, cam, Idx);
                 }
@@ -223,18 +258,24 @@ namespace TransRad
         // Draw a single model part
         void DrawMeshWithOcclusion(ModelMesh mesh, Camera cam, int partIdx)
         {
+            // Init occlusion query
             OcclusionQuery occQuery = new OcclusionQuery(GraphicsDevice);
             occQuery.Begin();
+
+            // Draw mesh
             DrawMesh(mesh, cam, partIdx);
+
+            // End occlusion query
             occQuery.End();
 
-            while (!occQuery.IsComplete)
-            {
-                // Do nothing until query is complete.
-            }
+            // Do nothing until query is complete.
+            while (!occQuery.IsComplete) { }
 
-            float ViewportArea = ViewportSize * ViewportSize;
-            Console.WriteLine("Seeing " + (occQuery.PixelCount / (float)Settings.D_PixelPerViewport * ViewportArea * 10000).ToString("F1") + " cm^2 of target " + partIdx + ".");
+            float PixelArea = ViewportSize * ViewportSize / Settings.D_PixelPerViewport;
+            float ObjArea = occQuery.PixelCount * PixelArea;
+            Areas[IdxSource, IdxTarget] = ObjArea;
+
+            // Dispose occlusion query
             occQuery.Dispose();
         }
 
@@ -245,8 +286,8 @@ namespace TransRad
                 eff.CurrentTechnique = eff.Techniques["BasicColorDrawing"];
                 eff.Parameters["WorldViewProjection"].SetValue(cam.World * cam.View * cam.Projection);
                 eff.Parameters["MeshNumber"].SetValue(partIdx);
-                eff.Parameters["SourceIdx"].SetValue(SourceIdx);
-                eff.Parameters["TargetIdx"].SetValue(TargetIdx);
+                eff.Parameters["SourceIdx"].SetValue(IdxSource);
+                eff.Parameters["TargetIdx"].SetValue(IdxTarget);
             }
             mesh.Draw();
         }

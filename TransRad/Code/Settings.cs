@@ -20,6 +20,7 @@ namespace TransRad
         public static int D_ViewportSize = D_ScreenWidth / 2;
         public static int D_PixelPerViewport = D_ViewportSize * D_ViewportSize;
         public static int D_FontPadding = 10;
+        public static float D_DefaultImageSize = 1;
 
         public static int I_KeyDelay = 200;
 
