@@ -3,7 +3,7 @@
  * Application control
  * 
  * Author: Max Gulde
- * Last Update: 2018-05-14
+ * Last Update: 2018-05-15
  * 
  */
 
@@ -37,6 +37,8 @@ namespace TransRad
         int TargetIdx = 1;
         int TargetIdxOld = -1;
         int NumberOfMeshes;
+        float ViewportSize = -1;
+        bool MeasureArea = false;
 
         #endregion
 
@@ -45,6 +47,7 @@ namespace TransRad
         public Main()
         {
             GFX = new GraphicsDeviceManager(this);
+            GFX.GraphicsProfile = GraphicsProfile.HiDef;
 
             Content.RootDirectory = "Content";
         }
@@ -53,6 +56,7 @@ namespace TransRad
         {
             GFX.PreferredBackBufferWidth = Settings.D_ScreenWidth;
             GFX.PreferredBackBufferHeight = Settings.D_ScreenHeight;
+            GFX.SynchronizeWithVerticalRetrace = false;
             GFX.ApplyChanges();
 
             VP_Free = new Viewport(0, 0, Settings.D_ViewportSize, Settings.D_ScreenHeight);
@@ -82,13 +86,19 @@ namespace TransRad
             NumberOfMeshes = Model.Meshes.Count;
             Console.WriteLine("Loading model with " + NumberOfMeshes + " meshes.");
 
+            int i = 0;
             foreach (ModelMesh m in Model.Meshes)
             {
-                Console.WriteLine("Mesh: " + m.Name);
+                Console.WriteLine("Mesh " + i + " <" + m.Name + ">");
+                if (string.Compare(m.Name, "Source", true) == 0)
+                {
+                    SourceIdx = i;
+                }
                 foreach (ModelMeshPart p in m.MeshParts)
                 {
                     p.Effect = Effect;
                 }
+                i++;
             }
         }
 
@@ -114,11 +124,12 @@ namespace TransRad
             }
 
             // Fix view for area evaluation
-            if (TargetIdx != TargetIdxOld)
+            MeasureArea = TargetIdx != TargetIdxOld;
+            if (MeasureArea)
             {
                 Vector3 CameraPosition = Tools.GetMeshCenter(Model.Meshes[SourceIdx]);
                 Vector3 CameraTarget = Tools.GetMeshCenter(Model.Meshes[TargetIdx]);
-                float ViewportSize = Tools.GetMeshDiameter(Model.Meshes[TargetIdx]);
+                ViewportSize = Tools.GetMeshDiameter(Model.Meshes[TargetIdx]);
                 C_Obj.SetPositionTarget(CameraPosition, CameraTarget, ViewportSize);
                 Console.WriteLine("New target: " + TargetIdx);
                 Console.WriteLine("\tNew viewport size: " + ViewportSize);
@@ -152,29 +163,62 @@ namespace TransRad
 
             // Draw obj view
             GraphicsDevice.Viewport = VP_Obj;
+            // Whole scene, without source
             DrawModel(C_Obj, SourceIdx);
+            // Only target
+            DrawModelPart(C_Obj, TargetIdx, MeasureArea);
 
             base.Draw(gameTime);
         }
 
-        void DrawModel(Camera cam, int sourceIdx = -1)
+        void DrawModel(Camera cam, int excludeIdx = -1)
         {
             int i = 0;
             foreach (ModelMesh mesh in Model.Meshes)
             {
-                if (i != sourceIdx)
+                if (i != excludeIdx)
                 {
-                    foreach (Effect eff in mesh.Effects)
-                    {
-                        eff.CurrentTechnique = eff.Techniques["BasicColorDrawing"];
-                        eff.Parameters["WorldViewProjection"].SetValue(cam.World * cam.View * cam.Projection);
-                        eff.Parameters["MeshNumber"].SetValue(i);
-                        eff.Parameters["SourceIdx"].SetValue(SourceIdx);
-                        eff.Parameters["TargetIdx"].SetValue(TargetIdx);
-                    }
-                    mesh.Draw();
+                    DrawModelPart(cam, i++);
                 }
-                i++;
+            }
+        }
+
+        void DrawModelPart(Camera cam, int partIdx, bool occlusionQuery = false)
+        {
+            if (partIdx >= Model.Meshes.Count)
+            {
+                return;
+            }
+            ModelMesh mesh = Model.Meshes[partIdx];
+
+            OcclusionQuery occQuery = new OcclusionQuery(GraphicsDevice);
+            if (occlusionQuery)
+            {
+                occQuery.Begin();
+            }
+
+            foreach (Effect eff in mesh.Effects)
+            {
+                eff.CurrentTechnique = eff.Techniques["BasicColorDrawing"];
+                eff.Parameters["WorldViewProjection"].SetValue(cam.World * cam.View * cam.Projection);
+                eff.Parameters["MeshNumber"].SetValue(partIdx);
+                eff.Parameters["SourceIdx"].SetValue(SourceIdx);
+                eff.Parameters["TargetIdx"].SetValue(TargetIdx);
+            }
+            mesh.Draw();
+
+            if (occlusionQuery)
+            {
+                occQuery.End();
+
+                while (!occQuery.IsComplete)
+                {
+                    // do nothing until query is complete
+                }
+
+                float ViewportArea = ViewportSize * ViewportSize;
+
+                Console.WriteLine("Seeing " + (occQuery.PixelCount / Settings.D_PixelPerViewport * ViewportArea * 1000000).ToString("F3") + " mm^2 of target " + partIdx + ".");
             }
         }
 
