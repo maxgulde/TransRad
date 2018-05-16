@@ -131,10 +131,6 @@ namespace TransRad
             Areas = new float[NumberOfMeshes, NumberOfMeshes];
             Console.WriteLine("Created " + NumberOfMeshes + " x " + NumberOfMeshes + " view factor matrix.");
 
-            // Set start indices
-            IdxSource = 0;
-            IdxTarget = 0;
-
             // Start performance counters
             SW_FPS.Start();
             t_FPS = 0;
@@ -172,13 +168,46 @@ namespace TransRad
             }
 
             // Fix view for area evaluation in right viewport
-            if (MeasureArea)
+            if (!StopMeasurement)
             {
-                Vector3 CameraPosition = Tools.GetMeshCenter(Model.Meshes[IdxSource]);
-                Vector3 CameraTarget = Tools.GetMeshCenter(Model.Meshes[IdxTarget]);
-                ViewportSize = Tools.GetMeshDiameter(Model.Meshes[IdxTarget]);
-                C_Obj.SetPositionTarget(CameraPosition, CameraTarget, ViewportSize);
-                Console.WriteLine("Viewing " + ObjNames[IdxSource] + " (" + IdxSource + ") -> " + ObjNames[IdxTarget] + " (" + IdxTarget + ")");
+                // Advance Indices
+                if (IdxSource < 0 && IdxTarget < 0)
+                {
+                    IdxSource = 0;
+                    IdxTarget = 0;
+                }
+                else
+                {
+                    IdxTarget++;
+                    if (IdxTarget >= NumberOfMeshes)
+                    {
+                        IdxSource++;
+                        IdxTarget = 0;  // Full matrix to check symmetry
+                    }
+                    if (IdxSource >= NumberOfMeshes)
+                    {
+                        MeasureArea = false;
+                    }
+                }
+
+                // Print out matrix
+                if (!MeasureArea && !StopMeasurement)
+                {
+                    Tools.PrintMatrix(Areas);
+                    StopMeasurement = true;
+                    IdxSource = -1;
+                    IdxTarget = -1;
+                }
+
+                // Fix camera view
+                if (MeasureArea)
+                {
+                    Vector3 CameraPosition = Tools.GetMeshCenter(Model.Meshes[IdxSource]);
+                    Vector3 CameraTarget = Tools.GetMeshCenter(Model.Meshes[IdxTarget]);
+                    ViewportSize = Tools.GetMeshDiameter(Model.Meshes[IdxTarget]);
+                    C_Obj.SetPositionTarget(CameraPosition, CameraTarget, ViewportSize);
+                    Console.WriteLine("Viewing " + ObjNames[IdxSource] + " (" + IdxSource + ") -> " + ObjNames[IdxTarget] + " (" + IdxTarget + ")");
+                }
             }
 
             MouseOldPosition = Input.MousePosition;
@@ -198,35 +227,15 @@ namespace TransRad
             GraphicsDevice.Viewport = VP_Free;
             DrawCompleteModel(C_Free);
 
-            // Draw obj view
-            GraphicsDevice.Viewport = VP_Obj;
-            // Whole scene, without source
-            DrawCompleteModel(C_Obj, !StopMeasurement);
-            // Only target
+            // Draw measurement view
             if (MeasureArea)
             {
+                // Draw obj view
+                GraphicsDevice.Viewport = VP_Obj;
+                // Whole scene, without source
+                DrawCompleteModel(C_Obj, !StopMeasurement);
+                // Redraw target
                 DrawMeshWithOcclusion(Model.Meshes[IdxTarget], C_Obj, IdxTarget);
-            }
-
-            // Advance indices
-            IdxTarget++;
-            if (IdxTarget >= NumberOfMeshes)
-            {
-                IdxSource++;
-                IdxTarget = 0;  // Full matrix to check symmetry
-            }
-            if (IdxSource >= NumberOfMeshes)
-            {
-                MeasureArea = false;
-            }
-
-            // Print out matrix
-            if (!MeasureArea && !StopMeasurement)
-            {
-                Tools.PrintMatrix(Areas);
-                StopMeasurement = true;
-                IdxSource = -1;
-                IdxTarget = -1;
             }
 
             // Draw FPS counter

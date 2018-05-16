@@ -38,11 +38,10 @@ namespace TransRad
             {
                 for (int rr = 0; rr < Rows; rr++)
                 {
-                    Console.Write(m[cc, rr] + " , ");
+                    Console.Write(m[cc, rr].ToString("F6") + ", ");
                 }
                 Console.WriteLine();
             }
-
         }
 
     }
