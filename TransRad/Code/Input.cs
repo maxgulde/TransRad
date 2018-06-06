@@ -3,7 +3,7 @@
  * Mouse and keyboard input
  * 
  * Author: Max Gulde
- * Last Update: 2018-05-14
+ * Last Update: 2018-06-06
  * 
  */
 
@@ -65,11 +65,27 @@ namespace TransRad
             }
         }
 
-        public static bool NextTarget
+        public static bool NextFace
         {
             get
             {
                 return Keyboard.GetState().IsKeyDown(Keys.Space) && KeyDelay;
+            }
+        }
+
+        public static bool NextObject
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.LeftAlt) || Keyboard.GetState().IsKeyDown(Keys.RightAlt)) && KeyDelay;
+            }
+        }
+
+        public static bool StartComputation
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.Enter) && KeyDelay);
             }
         }
 
@@ -128,5 +144,40 @@ namespace TransRad
 
         #endregion
 
+        #region debug
+
+        public static bool ToggleBBox
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.F1) && KeyDelay);
+            }
+        }
+
+        public static bool TogglePointer
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.F2) && KeyDelay);
+            }
+        }
+
+        public static bool ToggleMultiplierMap
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.F3) && KeyDelay);
+            }
+        }
+
+        public static bool ComputeArea
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.F4) && KeyDelay);
+            }
+        }
+
+        #endregion
     }
 }

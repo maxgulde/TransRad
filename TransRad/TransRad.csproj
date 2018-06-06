@@ -45,8 +45,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Code\Camera.cs" />
+    <Compile Include="Code\HemiCube.cs" />
     <Compile Include="Code\Input.cs" />
     <Compile Include="Code\ModelTools.cs" />
+    <Compile Include="Code\SatComponent.cs" />
+    <Compile Include="Code\SatModel.cs" />
     <Compile Include="Code\Settings.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Program.cs" />

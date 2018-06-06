@@ -4,7 +4,7 @@
  BasicColorDrawing: Model color drawing without shading / lighting; Can display darkened model if in Earth shadow
  
  Author: Max Gulde
- Last Update: 2018-05-14
+ Last Update: 2018-06-05
 */
 
 #if OPENGL
@@ -18,9 +18,8 @@
 
 // Extern / uniform variables
 matrix WorldViewProjection;
-int MeshNumber;
-int SourceIdx;
-int TargetIdx;
+float3 ComponentColor;
+float Alpha;
 
 struct VertexShaderInput
 {
@@ -38,16 +37,9 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 	VertexShaderOutput output = (VertexShaderOutput)0;
 
 	output.Position = mul(input.Position, WorldViewProjection);
-	output.Color = float4(0.5, 0.5, 0.5, 1);
 
-	if (MeshNumber == SourceIdx)
-	{
-		output.Color = float4(0.8, 0, 0, 1);
-	}
-	if (MeshNumber == TargetIdx)
-	{
-		output.Color = float4(0, 0.8, 0, 1);
-	}
+	// Set color
+	output.Color = float4(ComponentColor, Alpha);
 
 	return output;
 }
@@ -65,7 +57,20 @@ technique BasicColorDrawing
 		PixelShader = compile PS_SHADERMODEL MainPS();
 
 		AlphaBlendEnable = false;
-		CullMode = None;
+		CullMode = none;
+		ZEnable = true;
+	}
+};
+
+technique AlphaColorDrawing
+{
+	pass P0
+	{
+		VertexShader = compile VS_SHADERMODEL MainVS();
+		PixelShader = compile PS_SHADERMODEL MainPS();
+
+		AlphaBlendEnable = true;
+		CullMode = none;
 		ZEnable = true;
 	}
 };

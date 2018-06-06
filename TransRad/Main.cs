@@ -3,7 +3,7 @@
  * Application control
  * 
  * Author: Max Gulde
- * Last Update: 2018-05-15
+ * Last Update: 2018-06-05
  * 
  */
 
@@ -25,26 +25,25 @@ namespace TransRad
         #region fields
 
         GraphicsDeviceManager GFX;
-        Effect Effect;
-        Viewport VP_Free, VP_Obj, VP_Complete;
-        Camera C_Free, C_Obj;
+        Camera CamFree, CamHemiCube;
         SpriteFont Font;
         SpriteBatch SBatch;
-        Model Model;
+        Effect SEffect;
         Point MouseOldPosition;
+        RenderTarget2D RTFree, RTHemiCube, RTViewFactor;
 
-        int NumberOfMeshes;
-        int IdxSource = -1;
-        int IdxTarget = -1;
-        float ViewportSize = -1;
-        bool MeasureArea = true;
-        bool StopMeasurement = false;
-        float[,] Areas;
-        List<string> ObjNames;
+        Model Pointer;
+        SatModel Model;
+        HemiCube HemiCube;
 
-        Stopwatch SW_FPS;
-        int t_FPS;
-        int t_MaxFPS;
+        Stopwatch StopWatchFPS;
+        Stopwatch SW;
+        int TimerFPS;
+        int TimerMaxFPS;
+
+        List<AAFace> FaceList;
+        int CurrentFaceIndex;
+        int SourceIdx = 3;
 
         #endregion
 
@@ -68,14 +67,17 @@ namespace TransRad
             GFX.SynchronizeWithVerticalRetrace = false;
             GFX.ApplyChanges();
 
-            // Create viewports
-            VP_Complete = new Viewport(0, 0, Settings.D_ScreenWidth, Settings.D_ScreenHeight);
-            VP_Free = new Viewport(0, 0, Settings.D_ViewportSize, Settings.D_ScreenHeight);
-            VP_Obj = new Viewport(Settings.D_ViewportSize, 0, Settings.D_ViewportSize, Settings.D_ScreenHeight);
-
             // Create cameras
-            C_Free = new Camera(Settings.D_DefaultImageSize);
-            C_Obj = new Camera(Settings.D_DefaultImageSize);
+            CamFree = new Camera(Settings.D_DefaultImageSize);
+            CamHemiCube = new Camera(MathHelper.PiOver2, true);
+
+            // Create Hemicube data structure
+            HemiCube = new HemiCube(GraphicsDevice);    
+
+            // Create the rendertargets
+            RTFree = new RenderTarget2D(GraphicsDevice, Settings.D_ViewportSize, Settings.D_ViewportSize, false, SurfaceFormat.Color, DepthFormat.Depth16);
+            RTHemiCube = new RenderTarget2D(GraphicsDevice, Settings.D_HemiCubeResolution * 2, Settings.D_HemiCubeResolution * 2, false, SurfaceFormat.Color, DepthFormat.Depth16);
+            RTViewFactor = new RenderTarget2D(GraphicsDevice, Settings.D_HemiCubeResolution * 2, Settings.D_HemiCubeResolution * 2, true, SurfaceFormat.Single, DepthFormat.None);
 
             // Create sprite batch for font display
             SBatch = new SpriteBatch(GraphicsDevice);
@@ -89,7 +91,8 @@ namespace TransRad
             MouseOldPosition = Input.MousePosition;
 
             // Start stopwatch
-            SW_FPS = new Stopwatch();
+            StopWatchFPS = new Stopwatch();
+            SW = new Stopwatch();
 
             base.Initialize();
         }
@@ -101,40 +104,21 @@ namespace TransRad
         protected override void LoadContent()
         {
             // Loading assets
-            Model = Content.Load<Model>("TestObj1");
-            Effect = Content.Load<Effect>("Default");
+            Effect Effect = Content.Load<Effect>("Default");
+            SEffect = Content.Load<Effect>("Default2D");
+            Model = new SatModel(Content.Load<Model>("TestObj2"), Effect, GraphicsDevice);
             Font = Content.Load<SpriteFont>("Info");
+            Pointer = Content.Load<Model>("Pointer");
+            Pointer = Tools.ApplyCustomEffect(Pointer, Effect);
 
-            // Analysing model
-            NumberOfMeshes = Model.Meshes.Count;
-            Console.WriteLine("Loading model with " + NumberOfMeshes + " meshes.");
-            if (NumberOfMeshes < 2)
-            {
-                Console.WriteLine("### Error ### Not enough meshed found in model.");
-            }
-            ObjNames = new List<string>();
-            int i = 0;
-            foreach (ModelMesh m in Model.Meshes)
-            {
-                Console.WriteLine("Mesh " + i + " <" + m.Name + ">");
-                // Remember model name
-                ObjNames.Add(m.Name);
-                // Apply custom effect to each mesh
-                foreach (ModelMeshPart p in m.MeshParts)
-                {
-                    p.Effect = Effect;
-                }
-                i++;
-            }
-
-            // Creating area matrix
-            Areas = new float[NumberOfMeshes, NumberOfMeshes];
-            Console.WriteLine("Created " + NumberOfMeshes + " x " + NumberOfMeshes + " view factor matrix.");
+            // Fill face list
+            FaceList = Tools.GetEnumValues<AAFace>();
+            CurrentFaceIndex = 0;
 
             // Start performance counters
-            SW_FPS.Start();
-            t_FPS = 0;
-            t_MaxFPS = 0;
+            StopWatchFPS.Start();
+            TimerFPS = 0;
+            TimerMaxFPS = 0;
         }
 
         #endregion
@@ -148,67 +132,74 @@ namespace TransRad
                 Exit();
             }
 
-            // Performance
-            t_FPS++;
-            if (SW_FPS.ElapsedMilliseconds > 1000)
+            #region performance
+
+            TimerFPS++;
+            if (StopWatchFPS.ElapsedMilliseconds > 1000)
             {
-                t_MaxFPS = t_FPS;
-                t_FPS = 0;
-                SW_FPS.Restart();
+                TimerMaxFPS = TimerFPS;
+                TimerFPS = 0;
+                StopWatchFPS.Restart();
             }
 
-            // Camera control for left viewport)
+            #endregion
+
+            #region camera control
+
             if (Input.ClickL && MouseOldPosition != Input.MousePosition)
             {
-                Point dRot = MouseOldPosition - Input.MousePosition;
-                if (VP_Free.Bounds.Contains(Input.MousePosition))
+                Point dRot = Input.MousePosition - MouseOldPosition;
+                if (RTFree.Bounds.Contains(Input.MousePosition))
                 {
-                    C_Free.Rotate(-dRot.X * Settings.C_RotSpeedAz, -dRot.Y * Settings.C_RotSpeedEl);
+                    CamFree.Rotate(dRot.X * Settings.C_RotSpeedAz, dRot.Y * Settings.C_RotSpeedEl);
                 }
             }
 
-            // Fix view for area evaluation in right viewport
-            if (!StopMeasurement)
+            #endregion
+
+            #region simulation
+
+            if (Input.StartComputation)
             {
-                // Advance Indices
-                if (IdxSource < 0 && IdxTarget < 0)
-                {
-                    IdxSource = 0;
-                    IdxTarget = 0;
-                }
-                else
-                {
-                    IdxTarget++;
-                    if (IdxTarget >= NumberOfMeshes)
-                    {
-                        IdxSource++;
-                        IdxTarget = 0;  // Full matrix to check symmetry
-                    }
-                    if (IdxSource >= NumberOfMeshes)
-                    {
-                        MeasureArea = false;
-                    }
-                }
 
-                // Print out matrix
-                if (!MeasureArea && !StopMeasurement)
-                {
-                    Tools.PrintMatrix(Areas);
-                    StopMeasurement = true;
-                    IdxSource = -1;
-                    IdxTarget = -1;
-                }
 
-                // Fix camera view
-                if (MeasureArea)
-                {
-                    Vector3 CameraPosition = Tools.GetMeshCenter(Model.Meshes[IdxSource]);
-                    Vector3 CameraTarget = Tools.GetMeshCenter(Model.Meshes[IdxTarget]);
-                    ViewportSize = Tools.GetMeshDiameter(Model.Meshes[IdxTarget]);
-                    C_Obj.SetPositionTarget(CameraPosition, CameraTarget, ViewportSize);
-                    Console.WriteLine("Viewing " + ObjNames[IdxSource] + " (" + IdxSource + ") -> " + ObjNames[IdxTarget] + " (" + IdxTarget + ")");
-                }
             }
+
+            #endregion
+
+            #region debug
+
+            if (Input.ToggleBBox)
+            {
+                Settings.f_DrawBoundingBoxes = !Settings.f_DrawBoundingBoxes;
+            }
+            if (Input.TogglePointer)
+            {
+                Settings.f_DrawPointer = !Settings.f_DrawPointer;
+            }
+            if (Input.ToggleMultiplierMap)
+            {
+                Settings.f_DrawMultiplierMap = !Settings.f_DrawMultiplierMap;
+            }
+            if (Input.ComputeArea)
+            {
+                Settings.f_ComputeArea = true;
+            }
+            if (Input.NextFace)
+            {
+                CurrentFaceIndex++;
+                CurrentFaceIndex = CurrentFaceIndex >= FaceList.Count ? 0 : CurrentFaceIndex;
+                Console.WriteLine("Current face is <" + FaceList[CurrentFaceIndex].ToString() + ">.");
+            }
+            if (Input.NextObject)
+            {
+                SourceIdx++;
+                SourceIdx = SourceIdx >= Model.MeshNumber ? 0 : SourceIdx;
+                CurrentFaceIndex = 0;
+                Console.WriteLine("Current object is <" + Model.Components[SourceIdx].Name + ">.");
+            }
+
+            #endregion
 
             MouseOldPosition = Input.MousePosition;
 
@@ -221,86 +212,325 @@ namespace TransRad
 
         protected override void Draw(GameTime gameTime)
         {
+            AAFace CurrentFace = FaceList[CurrentFaceIndex];
+
+            #region free view
+
+            // Draw top view (free camera)
+            GraphicsDevice.SetRenderTarget(RTFree);
             GraphicsDevice.Clear(Color.White);
-
-            // Draw top view
-            GraphicsDevice.Viewport = VP_Free;
-            DrawCompleteModel(C_Free);
-
-            // Draw measurement view
-            if (MeasureArea)
+            Model.DrawCompleteModel(CamFree, Settings.f_DrawBoundingBoxes, Vector3.Zero, -1, true);
+            // Draw pointer
+            if (Settings.f_DrawPointer)
             {
-                // Draw obj view
-                GraphicsDevice.Viewport = VP_Obj;
-                // Whole scene, without source
-                DrawCompleteModel(C_Obj, !StopMeasurement);
-                // Redraw target
-                DrawMeshWithOcclusion(Model.Meshes[IdxTarget], C_Obj, IdxTarget);
+                Vector3 CamPosition = Model.Components[SourceIdx].GetFaceCenter(CurrentFace);
+                DrawModel(CamFree, Pointer, CamPosition);
+                foreach (AAFace face in HemiCube.GetFaceList(CurrentFace))
+                {
+                    DrawModel(CamFree, Pointer, Model.Components[SourceIdx].GetFaceDirection(CamPosition, face));
+                }
             }
 
-            // Draw FPS counter
-            GraphicsDevice.Viewport = VP_Complete;
+            #endregion
+
+            #region radiosity
+
+            // Generate HemiCube textures
+            DrawHemiCubeToTextures(Model.Components[SourceIdx], CurrentFace, HemiCube.GetFaceList(CurrentFace));
+            MergeHemiCubeTextures();
+
+            // Apply transfer map
+            GraphicsDevice.SetRenderTarget(RTViewFactor);
+            GraphicsDevice.Clear(Color.White);
+            ApplyMultiplierMap();
+
+            #endregion
+
+            #region rendertargets
+
+            // Draw rendertargets
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.Clear(Color.White);
             SBatch.Begin();
-            string Text = t_MaxFPS + " fps";
-            Vector2 Position = Settings.D_FontPadding * Vector2.One;
+
+            // Free view
+            SBatch.Draw(RTFree, RTFree.Bounds, Color.White);
+
+            // View factor map
+            Vector2 Position = new Vector2(RTFree.Bounds.Width, 0);
+            SBatch.Draw(RTViewFactor, Position, Color.White);
+
+            // Multiplier texture
+            if (Settings.f_DrawMultiplierMap)
+            {
+                SBatch.Draw(HemiCube.MultiplierMap, Position, Color.White);
+            }
+
+            // FPS counter
+            string Text = TimerMaxFPS + " fps";
+            Position = Settings.D_FontPadding * Vector2.One;
             SBatch.DrawString(Font, Text, Position, Color.Black);
+
             SBatch.End();
+
+            #endregion
+
+            #region area computation
+
+            if (Settings.f_ComputeArea)
+            {
+                float Area = GetPixelSum(RTViewFactor);
+                Console.WriteLine("View factor (whole texture) = " + Area.ToString());
+                //Area = GetPixelSumMipMap(RTViewFactor);
+                //Console.WriteLine("View factor (mipmap) = " + Area.ToString());
+                Settings.f_ComputeArea = false;
+            }
+
+            #endregion
 
             base.Draw(gameTime);
         }
 
+        #region secondary methods
 
-        // Draw the complete model / scene
-        void DrawCompleteModel(Camera cam, bool excludeSource = false)
+        void DrawModel(Camera cam, Model model, Vector3 position)
         {
-            int Idx = 0;
-            foreach (ModelMesh mesh in Model.Meshes)
+            // Draw pointer
+            foreach (ModelMesh mesh in model.Meshes)
             {
-                if (!excludeSource || Idx != IdxSource)
+                foreach (Effect eff in mesh.Effects)
                 {
-                    DrawMesh(mesh, cam, Idx);
+                    Matrix World = Matrix.CreateTranslation(position);
+                    Matrix Scale = Matrix.CreateScale(Settings.D_PointerScale);
+                    eff.CurrentTechnique = eff.Techniques["BasicColorDrawing"];
+                    eff.Parameters["WorldViewProjection"].SetValue(Scale * World * cam.View * cam.Projection);
+                    eff.Parameters["ComponentColor"].SetValue(Color.Red.ToVector3());
+                    eff.Parameters["Alpha"].SetValue(1.0f);
                 }
-                Idx++;
+                mesh.Draw();
             }
         }
 
-        // Draw a single model part
-        void DrawMeshWithOcclusion(ModelMesh mesh, Camera cam, int partIdx)
+        void DrawHemiCubeToTextures(SatComponent source, AAFace CurrentFace, List<AAFace> faces)
         {
-            // Init occlusion query
-            OcclusionQuery occQuery = new OcclusionQuery(GraphicsDevice);
-            occQuery.Begin();
+            // Set camera position
+            Vector3 Position = source.GetFaceCenter(CurrentFace);
 
-            // Draw mesh
-            DrawMesh(mesh, cam, partIdx);
-
-            // End occlusion query
-            occQuery.End();
-
-            // Do nothing until query is complete.
-            while (!occQuery.IsComplete) { }
-
-            float PixelArea = ViewportSize * ViewportSize / Settings.D_PixelPerViewport;
-            float ObjArea = occQuery.PixelCount * PixelArea;
-            Areas[IdxSource, IdxTarget] = ObjArea;
-
-            // Dispose occlusion query
-            occQuery.Dispose();
-        }
-
-        void DrawMesh(ModelMesh mesh, Camera cam, int partIdx)
-        {
-            foreach (Effect eff in mesh.Effects)
+            for (int i = 0; i < faces.Count; i++)
             {
-                eff.CurrentTechnique = eff.Techniques["BasicColorDrawing"];
-                eff.Parameters["WorldViewProjection"].SetValue(cam.World * cam.View * cam.Projection);
-                eff.Parameters["MeshNumber"].SetValue(partIdx);
-                eff.Parameters["SourceIdx"].SetValue(IdxSource);
-                eff.Parameters["TargetIdx"].SetValue(IdxTarget);
+                // Orient camera
+                Vector3 Target = source.GetFaceDirection(Position, faces[i]);
+                CamHemiCube.SetPositionTarget(Position, Target, true);
+
+                // Prepare rendertarget
+                GraphicsDevice.SetRenderTarget(HemiCube.RTIndividual[i]);
+                GraphicsDevice.Clear(Color.Black);
+
+                // Render model
+                Model.DrawCompleteModel(CamHemiCube, false, Vector3.One, SourceIdx);
             }
-            mesh.Draw();
         }
 
+        void MergeHemiCubeTextures()
+        {
+            // Prepare variables
+            int TextureSize = Settings.D_HemiCubeResolution;
+            AAFace CurrentFace = FaceList[CurrentFaceIndex];
+            Vector2 Origin = Vector2.One * TextureSize * 0.5f;
+            Vector2 Position;
+            Rectangle Source;
+            float Rotation;
+
+            // Init drawing (around texture center)
+            GraphicsDevice.SetRenderTarget(RTHemiCube);
+            GraphicsDevice.Clear(Color.DarkRed);
+            SBatch.Begin();
+
+            #region front
+
+            switch (CurrentFace)
+            {
+                case AAFace.YPlus:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize);
+                    Position = Vector2.One * TextureSize;
+                    Rotation = MathHelper.PiOver2;
+                    break;
+                case AAFace.YMinus:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize);
+                    Position = Vector2.One * TextureSize;
+                    Rotation = MathHelper.PiOver2;
+                    break;
+                default:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize);
+                    Position = Vector2.One * TextureSize;
+                    Rotation = 0;
+                    break;
+            }
+            SBatch.Draw(HemiCube.TFront, Position, Source, Color.White, Rotation, Origin, 1.0f, SpriteEffects.None, 0.0f);
+
+            #endregion
+
+            #region left
+
+            switch (CurrentFace)
+            {
+                case AAFace.YPlus:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize / 2);
+                    Position = new Vector2(0, 1.0f) * TextureSize;
+                    Rotation = MathHelper.PiOver2;
+                    break;
+                case AAFace.YMinus:
+                    Source = new Rectangle(0, TextureSize / 2, TextureSize, TextureSize / 2);
+                    Position = new Vector2(0.5f, 1.0f) * TextureSize;
+                    Rotation = -MathHelper.PiOver2;
+                    break;
+                default:
+                    Source = new Rectangle(TextureSize / 2, 0, TextureSize / 2, TextureSize);
+                    Position = new Vector2(0.5f, 1.0f) * TextureSize;
+                    Rotation = 0;
+                    break;
+            }
+            SBatch.Draw(HemiCube.TLeft, Position, Source, Color.White, Rotation, Origin, 1.0f, SpriteEffects.None, 0.0f);
+
+            #endregion
+
+            #region right
+
+            switch (CurrentFace)
+            {
+                case AAFace.YPlus:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize / 2);
+                    Position = new Vector2(2.0f, 1.0f) * TextureSize;
+                    Rotation = -MathHelper.PiOver2;
+                    break;
+                case AAFace.YMinus:
+                    Source = new Rectangle(0, TextureSize / 2, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.5f, 1.0f) * TextureSize;
+                    Rotation = MathHelper.PiOver2;
+                    break;
+                default:
+                    Source = new Rectangle(0, 0, TextureSize / 2, TextureSize);
+                    Position = new Vector2(2.0f, 1.0f) * TextureSize;
+                    Rotation = 0;
+                    break;
+            }
+
+            SBatch.Draw(HemiCube.TRight, Position, Source, Color.White, Rotation, Origin, 1.0f, SpriteEffects.None, 0.0f);
+
+            #endregion
+
+            #region up
+
+            switch (CurrentFace)
+            {
+                case AAFace.ZPlus:
+                    Source = new Rectangle(TextureSize / 2, 0, TextureSize / 2, TextureSize);
+                    Position = new Vector2(1.0f, 0.5f) * TextureSize;
+                    Rotation = MathHelper.PiOver2;
+                    break;
+                case AAFace.ZMinus:
+                    Source = new Rectangle(0, 0, TextureSize / 2, TextureSize);
+                    Position = new Vector2(1.0f, 0) * TextureSize;
+                    Rotation = -MathHelper.PiOver2;
+                    break;
+                case AAFace.YPlus:
+                    Source = new Rectangle(0, TextureSize / 2, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 0) * TextureSize;
+                    Rotation = MathHelper.Pi;
+                    break;
+                case AAFace.YMinus:
+                    Source = new Rectangle(0, TextureSize / 2, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 0.5f) * TextureSize;
+                    Rotation = 0;
+                    break;
+                case AAFace.XMinus:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 0) * TextureSize;
+                    Rotation = MathHelper.Pi;
+                    break;
+                default:
+                    Source = new Rectangle(0, TextureSize / 2, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 0.5f) * TextureSize;
+                    Rotation = 0;
+                    break;
+            }
+            SBatch.Draw(HemiCube.TUp, Position, Source, Color.White, Rotation, Origin, 1.0f, SpriteEffects.None, 0.0f);
+
+            #endregion
+
+            #region down
+
+            switch (CurrentFace)
+            {
+                case AAFace.ZPlus:
+                    Source = new Rectangle(TextureSize / 2, 0, TextureSize / 2, TextureSize);
+                    Position = new Vector2( 1.0f, 1.5f) * TextureSize;
+                    Rotation = -MathHelper.PiOver2;
+                    break;
+                case AAFace.ZMinus:
+                    Source = new Rectangle(0, 0, TextureSize / 2, TextureSize);
+                    Position = new Vector2(1.0f, 2.0f) * TextureSize;
+                    Rotation = MathHelper.PiOver2;
+                    break;
+                case AAFace.YPlus:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 2.0f) * TextureSize;
+                    Rotation = 0;
+                    break;
+                case AAFace.YMinus:
+                    Source = new Rectangle(0, TextureSize / 2, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 1.5f) * TextureSize;
+                    Rotation = MathHelper.Pi;
+                    break;
+                case AAFace.XMinus:
+                    Source = new Rectangle(0, TextureSize / 2, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 1.5f) * TextureSize;
+                    Rotation = MathHelper.Pi;
+                    break;
+                default:
+                    Source = new Rectangle(0, 0, TextureSize, TextureSize / 2);
+                    Position = new Vector2(1.0f, 2.0f) * TextureSize;
+                    Rotation = 0;
+                    break;
+            }
+            SBatch.Draw(HemiCube.TDown, Position, Source, Color.White, Rotation, Origin, 1.0f, SpriteEffects.None, 0.0f);
+
+            #endregion
+
+            SBatch.End();
+        }
+
+        void ApplyMultiplierMap()
+        {
+            Texture2D MMap = Settings.f_ComputeArea ? HemiCube.MultiplierMapN : HemiCube.MultiplierMap;
+            SEffect.Parameters["TexMuMap"].SetValue(MMap);
+            //SEffect.Parameters["TexMuMap"].SetValue(HemiCube.UnityMap);
+            SBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, SEffect);
+            SBatch.Draw(RTHemiCube, Vector2.Zero, Color.White);
+            SBatch.End();
+        }
+
+        #endregion
+
+        #endregion
+
+        #region view factor computation
+
+        float GetPixelSum(Texture2D tex)
+        {
+            int N = tex.Width * tex.Height;
+            float[] PixelValue = new float[N];
+            tex.GetData(PixelValue);
+
+            float Sum = 0;
+            for (int i = 0; i < N; i++)
+            {
+                Sum += PixelValue[i];
+            }
+
+            return Sum;
+        }
+        
         #endregion
     }
 }

@@ -1,9 +1,9 @@
 ﻿/* Radiate Energy Transport Tests Project
  * 
- * Camera control.
+ * Camera control. Coordinate system is Y up!
  * 
  * Author: Max Gulde
- * Last Update: 2018-05-14
+ * Last Update: 2018-05-28
  * 
  */
 
@@ -16,7 +16,7 @@ using Microsoft.Xna.Framework;
 
 namespace TransRad
 {
-    class Camera
+    public class Camera
     {
 
         #region fields
@@ -29,9 +29,11 @@ namespace TransRad
         public float El { get; private set; }
         public float ImageSize { get; private set; }
 
+        public bool IsPerspective { get; private set; }
+
         #endregion
 
-        public Camera(float imageSize)
+        public Camera(float imageSize, bool isPerspective = false)
         {
             // set view and projection matrices
             World = Matrix.Identity;
@@ -41,7 +43,8 @@ namespace TransRad
             // set elevation and azimuth
             Az = 0;
             El = 0;
-            ImageSize = imageSize;
+            ImageSize = imageSize; // Can also be a field of view
+            IsPerspective = isPerspective;
 
             // update
             Update();
@@ -51,20 +54,26 @@ namespace TransRad
         {
             // compute position from angles
             Vector3 Position;
-            Position.X = (float)(Math.Cos(MathHelper.ToRadians(-El + Settings.C_ElevationOffset)) * Math.Cos(MathHelper.ToRadians(Az + Settings.C_AzimuthOffset)));
-            Position.Y = (float)(Math.Cos(MathHelper.ToRadians(-El + Settings.C_ElevationOffset)) * Math.Sin(MathHelper.ToRadians(Az + Settings.C_AzimuthOffset)));
-            Position.Z = (float)Math.Sin(MathHelper.ToRadians(-El + Settings.C_ElevationOffset));
+            Position.X = (float)(Math.Cos(MathHelper.ToRadians(El + Settings.C_ElevationOffset)) * Math.Cos(MathHelper.ToRadians(Az + Settings.C_AzimuthOffset)));
+            Position.Z = (float)(Math.Cos(MathHelper.ToRadians(El + Settings.C_ElevationOffset)) * Math.Sin(MathHelper.ToRadians(Az + Settings.C_AzimuthOffset)));
+            Position.Y = (float)Math.Sin(MathHelper.ToRadians(El + Settings.C_ElevationOffset));
 
             Vector3 Target = Vector3.Zero;
-            SetPositionTarget(Position, Target, ImageSize);
+            SetPositionTarget(Position, Target);
         }
 
-        public void SetPositionTarget(Vector3 position, Vector3 target, float imageSize)
+        public void SetPositionTarget(Vector3 position, Vector3 target, bool isPerspective = false)
         {
             // set view and projection matrices
-            View = Matrix.CreateLookAt(position, target, Vector3.Forward);
-            Projection = Matrix.CreateOrthographic(imageSize, imageSize, Settings.C_NearPlane, Settings.C_FarPlane);
-            //Projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, 1, NearPlane, FarPlane);
+            View = Matrix.CreateLookAt(position, target, Vector3.Up);
+            if (IsPerspective)
+            {
+                Projection = Matrix.CreatePerspectiveFieldOfView(ImageSize, 1, Settings.C_NearPlane, Settings.C_FarPlane);
+            }
+            else
+            {
+                Projection = Matrix.CreateOrthographic(ImageSize, ImageSize, Settings.C_NearPlane, Settings.C_FarPlane);
+            }
         }
 
         public void Rotate(float dAz, float dEl)
