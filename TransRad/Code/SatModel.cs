@@ -83,6 +83,11 @@ namespace TransRad
             }
         }
 
+        public void DrawComponent(Camera cam, int targetIdx)
+        {
+            Components[targetIdx].DrawMesh(cam, Color.White.ToVector3());
+        }
+
         #endregion
     }
 }

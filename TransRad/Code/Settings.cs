@@ -44,5 +44,6 @@ namespace TransRad
         public static bool f_DrawPointer = true;
         public static bool f_DrawMultiplierMap = false;
         public static bool f_ComputeArea = false;
+        public static bool f_ComputationRunning = false;
     }
 }

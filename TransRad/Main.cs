@@ -42,8 +42,13 @@ namespace TransRad
         int TimerMaxFPS;
 
         List<AAFace> FaceList;
-        int CurrentFaceIndex;
-        int SourceIdx = 3;
+        int SourceIdx;
+        int TargetIdx;
+        int TargetFaceIdx;
+        bool IndicesInitalized = false;
+        bool ComputationEnded = true;
+
+        List<ViewFactor> Results;
 
         #endregion
 
@@ -90,11 +95,22 @@ namespace TransRad
             Input.InitInput();
             MouseOldPosition = Input.MousePosition;
 
+            // Results
+            InitIndices();
+            Results = new List<ViewFactor>();
+
             // Start stopwatch
             StopWatchFPS = new Stopwatch();
             SW = new Stopwatch();
 
             base.Initialize();
+        }
+
+        private void InitIndices()
+        {
+            SourceIdx = 0;
+            TargetIdx = 1;
+            TargetFaceIdx = 0;
         }
 
         #endregion
@@ -113,7 +129,6 @@ namespace TransRad
 
             // Fill face list
             FaceList = Tools.GetEnumValues<AAFace>();
-            CurrentFaceIndex = 0;
 
             // Start performance counters
             StopWatchFPS.Start();
@@ -161,42 +176,88 @@ namespace TransRad
 
             if (Input.StartComputation)
             {
-
-
+                ComputationEnded = false;
+            }
+            if (!ComputationEnded)
+            {
+                Settings.f_ComputeArea = true;
+                if (!IndicesInitalized)
+                {
+                    InitIndices();
+                    IndicesInitalized = true;
+                    Settings.f_ComputationRunning = true;
+                }
+                else
+                {
+                    // Select next face
+                    TargetFaceIdx++;
+                    // If was last face, next target
+                    if (TargetFaceIdx >= Tools.GetEnumValues<AAFace>().Count)
+                    {
+                        TargetFaceIdx = 0;
+                        TargetIdx++;
+                    }
+                    // If same as source, next target
+                    if (TargetIdx == SourceIdx)
+                    {
+                        TargetIdx++;
+                    }
+                    // If last target, next source
+                    if (TargetIdx >= Model.MeshNumber)
+                    {
+                        TargetIdx = 0;
+                        SourceIdx++;
+                    }
+                    // If last source, end
+                    if (SourceIdx >= Model.MeshNumber)
+                    {
+                        InitIndices();
+                        ComputationEnded = true;
+                        Settings.f_ComputationRunning = false;
+                        Settings.f_ComputeArea = false;
+                    }
+                }
+                Console.WriteLine("Computing view factor");
+                Console.WriteLine("\t Source index = " + SourceIdx);
+                Console.WriteLine("\t Target index = " + TargetIdx);
+                Console.WriteLine("\t Target face index = " + TargetFaceIdx);
             }
 
             #endregion
 
             #region debug
 
-            if (Input.ToggleBBox)
+            else
             {
-                Settings.f_DrawBoundingBoxes = !Settings.f_DrawBoundingBoxes;
-            }
-            if (Input.TogglePointer)
-            {
-                Settings.f_DrawPointer = !Settings.f_DrawPointer;
-            }
-            if (Input.ToggleMultiplierMap)
-            {
-                Settings.f_DrawMultiplierMap = !Settings.f_DrawMultiplierMap;
-            }
-            if (Input.ComputeArea)
-            {
-                Settings.f_ComputeArea = true;
-            }
-            if (Input.NextFace)
-            {
-                CurrentFaceIndex++;
-                CurrentFaceIndex = CurrentFaceIndex >= FaceList.Count ? 0 : CurrentFaceIndex;
-                Console.WriteLine("Current face is <" + FaceList[CurrentFaceIndex].ToString() + ">.");
-            }
-            if (Input.NextObject)
-            {
-                SourceIdx++;
-                SourceIdx = SourceIdx >= Model.MeshNumber ? 0 : SourceIdx;
-                CurrentFaceIndex = 0;
-                Console.WriteLine("Current object is <" + Model.Components[SourceIdx].Name + ">.");
+                if (Input.ToggleBBox)
+                {
+                    Settings.f_DrawBoundingBoxes = !Settings.f_DrawBoundingBoxes;
+                }
+                if (Input.TogglePointer)
+                {
+                    Settings.f_DrawPointer = !Settings.f_DrawPointer;
+                }
+                if (Input.ToggleMultiplierMap)
+                {
+                    Settings.f_DrawMultiplierMap = !Settings.f_DrawMultiplierMap;
+                }
+                if (Input.ComputeArea)
+                {
+                    Settings.f_ComputeArea = true;
+                }
+                if (Input.NextFace)
+                {
+                    TargetFaceIdx++;
+                    TargetFaceIdx = TargetFaceIdx >= FaceList.Count ? 0 : TargetFaceIdx;
+                    Console.WriteLine("Current face is <" + FaceList[TargetFaceIdx].ToString() + ">.");
+                }
+                if (Input.NextObject)
+                {
+                    SourceIdx++;
+                    SourceIdx = SourceIdx >= Model.MeshNumber ? 0 : SourceIdx;
+                    TargetFaceIdx = 0;
+                    Console.WriteLine("Current object is <" + Model.Components[SourceIdx].Name + ">.");
+                }
             }
 
             #endregion
@@ -212,7 +273,7 @@ namespace TransRad
 
         protected override void Draw(GameTime gameTime)
         {
-            AAFace CurrentFace = FaceList[CurrentFaceIndex];
+            AAFace CurrentFace = FaceList[TargetFaceIdx];
 
             #region free view
 
@@ -280,9 +341,11 @@ namespace TransRad
             if (Settings.f_ComputeArea)
             {
                 float Area = GetPixelSum(RTViewFactor);
-                Console.WriteLine("View factor (whole texture) = " + Area.ToString());
-                //Area = GetPixelSumMipMap(RTViewFactor);
-                //Console.WriteLine("View factor (mipmap) = " + Area.ToString());
+                Console.WriteLine("\t View factor = " + Area.ToString());
+                // Safe results
+                float SourceArea = Model.Components[SourceIdx].GetBBoxTotalArea();
+                float TargetArea = Model.Components[TargetIdx].GetBBoxFaceArea(FaceList[TargetFaceIdx]);
+                Results.Add(new ViewFactor(SourceIdx, TargetIdx, SourceArea, TargetArea, FaceList[TargetFaceIdx]));
                 Settings.f_ComputeArea = false;
             }
 
@@ -327,7 +390,14 @@ namespace TransRad
                 GraphicsDevice.Clear(Color.Black);
 
                 // Render model
-                Model.DrawCompleteModel(CamHemiCube, false, Vector3.One, SourceIdx);
+                if (Settings.f_ComputationRunning)
+                {
+                    Model.DrawComponent(CamHemiCube, TargetIdx);
+                }
+                else
+                {
+                    Model.DrawCompleteModel(CamHemiCube, false, Vector3.One, SourceIdx);
+                }
             }
         }
 
@@ -335,7 +405,7 @@ namespace TransRad
         {
             // Prepare variables
             int TextureSize = Settings.D_HemiCubeResolution;
-            AAFace CurrentFace = FaceList[CurrentFaceIndex];
+            AAFace CurrentFace = FaceList[TargetFaceIdx];
             Vector2 Origin = Vector2.One * TextureSize * 0.5f;
             Vector2 Position;
             Rectangle Source;
@@ -532,5 +602,25 @@ namespace TransRad
         }
         
         #endregion
+    }
+
+    public struct ViewFactor
+    {
+        public int SourceIdx { get; private set; }
+        public int TargetIdx { get; private set; }
+
+        public float SourceArea { get; private set; }
+        public float TargetFaceArea { get; private set; }
+
+        public AAFace TargetFace { get; private set; }
+
+        public ViewFactor(int sourceIdx, int targetIdx, float sourceArea, float targetArea, AAFace targetFace)
+        {
+            SourceIdx = sourceIdx;
+            TargetIdx = targetIdx;
+            SourceArea = sourceArea;
+            TargetFaceArea = targetArea;
+            TargetFace = targetFace;
+        }
     }
 }
