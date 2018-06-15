@@ -10,6 +10,7 @@
 #region using
 
 using Microsoft.Xna.Framework;
+using System.Globalization;
 
 #endregion
 
@@ -45,5 +46,9 @@ namespace TransRad
         public static bool f_DrawMultiplierMap = false;
         public static bool f_ComputeArea = false;
         public static bool f_ComputationRunning = false;
+        public static bool f_DrawCompleteModel = false;
+        public static bool f_UseUniformMMap = false;
+
+        public static CultureInfo Format = new CultureInfo("en-us");
     }
 }

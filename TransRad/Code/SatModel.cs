@@ -64,13 +64,13 @@ namespace TransRad
         #region draw
 
         // Draw the complete model / scene
-        public void DrawCompleteModel(Camera cam, bool drawBoundingBoxes, Vector3 color, int excludeComponent = -1, bool useIndividualColors = false)
+        public void DrawCompleteModel(Camera cam, bool drawBoundingBoxes, Color color, int excludeComponent = -1, bool useIndividualColors = false)
         {
             for (int i = 0; i < MeshNumber; i++)
             {
                 if (i != excludeComponent)
                 {
-                    Vector3 C = useIndividualColors ? Tools.GetColorFromIndex(i, MeshNumber).ToVector3() : color;
+                    Color C = useIndividualColors ? Tools.GetColorFromIndex(i, MeshNumber) : color;
                     if (drawBoundingBoxes)
                     {
                         Components[i].DrawBoundingBox(cam);
@@ -85,7 +85,7 @@ namespace TransRad
 
         public void DrawComponent(Camera cam, int targetIdx)
         {
-            Components[targetIdx].DrawMesh(cam, Color.White.ToVector3());
+            Components[targetIdx].DrawMesh(cam, Color.White);
         }
 
         #endregion

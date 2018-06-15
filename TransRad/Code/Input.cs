@@ -3,7 +3,7 @@
  * Mouse and keyboard input
  * 
  * Author: Max Gulde
- * Last Update: 2018-06-06
+ * Last Update: 2018-06-15
  * 
  */
 
@@ -65,19 +65,35 @@ namespace TransRad
             }
         }
 
-        public static bool NextFace
+        public static bool NextTargetFace
         {
             get
             {
-                return Keyboard.GetState().IsKeyDown(Keys.Space) && KeyDelay;
+                return Keyboard.GetState().IsKeyDown(Keys.T) && KeyDelay;
             }
         }
 
-        public static bool NextObject
+        public static bool NextSourceFace
+        {
+            get
+            {
+                return Keyboard.GetState().IsKeyDown(Keys.S) && KeyDelay;
+            }
+        }
+
+        public static bool NextSource
         {
             get
             {
                 return (Keyboard.GetState().IsKeyDown(Keys.LeftAlt) || Keyboard.GetState().IsKeyDown(Keys.RightAlt)) && KeyDelay;
+            }
+        }
+
+        public static bool NextTarget
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl)) && KeyDelay;
             }
         }
 
@@ -86,6 +102,14 @@ namespace TransRad
             get
             {
                 return (Keyboard.GetState().IsKeyDown(Keys.Enter) && KeyDelay);
+            }
+        }
+
+        public static bool StartVerificationRun
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.Back) && KeyDelay);
             }
         }
 
@@ -175,6 +199,20 @@ namespace TransRad
             get
             {
                 return (Keyboard.GetState().IsKeyDown(Keys.F4) && KeyDelay);
+            }
+        }
+        public static bool ToggleCompleteModel
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.F5) && KeyDelay);
+            }
+        }
+        public static bool ToggleUniformMap
+        {
+            get
+            {
+                return (Keyboard.GetState().IsKeyDown(Keys.F6) && KeyDelay);
             }
         }
 

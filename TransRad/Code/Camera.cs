@@ -33,6 +33,8 @@ namespace TransRad
 
         #endregion
 
+        #region ctr
+
         public Camera(float imageSize, bool isPerspective = false)
         {
             // set view and projection matrices
@@ -49,6 +51,10 @@ namespace TransRad
             // update
             Update();
         }
+
+        #endregion
+
+        #region update
 
         public void Update()
         {
@@ -96,5 +102,17 @@ namespace TransRad
 
             Update();
         }
+
+        public void TranslateX(float step)
+        {
+            World = Matrix.CreateTranslation(step, 0, 0);
+        }
+
+        public void TranslateZ(float step)
+        {
+            World = Matrix.CreateTranslation(0, 0, step);
+        }
+
+        #endregion
     }
 }

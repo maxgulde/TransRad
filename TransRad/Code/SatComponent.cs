@@ -3,7 +3,7 @@
  * Data struct for single satellite component.
  * 
  * Author: Max Gulde
- * Last Update: 2018-06-06
+ * Last Update: 2018-06-15
  * 
  */
 
@@ -72,7 +72,6 @@ namespace TransRad
                 // Iterate through vertices (possibly) growing bounding box, all calculations are done in world space
                 for (int i = 0; i < VertexBufferSize / sizeof(float); i += VertexStride / sizeof(float))
                 {
-                    //Vector3 transformedPosition = Vector3.Transform(new Vector3(VertexData[i], VertexData[i + 1], VertexData[i + 2]), worldTransform);
                     Vector3 Position = new Vector3(VertexData[i], VertexData[i + 1], VertexData[i + 2]);
 
                     Min = Vector3.Min(Min, Position);
@@ -235,13 +234,13 @@ namespace TransRad
 
         #region draw
 
-        public void DrawMesh(Camera cam, Vector3 color)
+        public void DrawMesh(Camera cam, Color color)
         {
             foreach (Effect eff in Mesh.Effects)
             {
                 eff.CurrentTechnique = eff.Techniques["BasicColorDrawing"];
                 eff.Parameters["WorldViewProjection"].SetValue(cam.World * cam.View * cam.Projection);
-                eff.Parameters["ComponentColor"].SetValue(color);
+                eff.Parameters["ComponentColor"].SetValue(color.ToVector3());
                 eff.Parameters["Alpha"].SetValue(1.0f);
             }
             Mesh.Draw();
@@ -251,17 +250,17 @@ namespace TransRad
         {
             foreach (AAFace face in Tools.GetEnumValues<AAFace>())
             {
-                DrawBoundingBoxFace(cam, face);
+                DrawBoundingBoxFace(cam, face, Settings.F_BBoxColor);
             }
         }
 
-        public void DrawBoundingBoxFace(Camera cam, AAFace face)
+        public void DrawBoundingBoxFace(Camera cam, AAFace face, Color color)
         {
             // Setup effect
-            Effect.CurrentTechnique = Effect.Techniques["AlphaColorDrawing"];
+            Effect.CurrentTechnique = Effect.Techniques["BasicColorDrawing"];
             Effect.Parameters["WorldViewProjection"].SetValue(cam.World * cam.View * cam.Projection);
-            Effect.Parameters["ComponentColor"].SetValue(Settings.F_BBoxColor.ToVector3());
-            Effect.Parameters["Alpha"].SetValue(Settings.D_BBoxAlpha);
+            Effect.Parameters["ComponentColor"].SetValue(color.ToVector3());
+            Effect.Parameters["Alpha"].SetValue(1.0f);
 
             // Get vertices
             VertexPositionColor[] Verts = BBoxVertices[(int)face];
