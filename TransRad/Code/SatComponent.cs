@@ -87,15 +87,17 @@ namespace TransRad
             Vector3[] Corners = BBox.GetCorners();
             BBoxVertices = new List<VertexPositionColor[]>()
             {
-                GetFaceVertices(Corners, new int[] { 0, 1, 2, 0, 2, 3 }),   // front
-                GetFaceVertices(Corners, new int[] { 4, 5, 6, 4, 6, 7 }),   // back
-                GetFaceVertices(Corners, new int[] { 4, 0, 3, 4, 3, 7 }),   // left
-                GetFaceVertices(Corners, new int[] { 5, 1, 2, 5, 2, 6 }),   // right
-                GetFaceVertices(Corners, new int[] { 3, 2, 6, 3, 6, 7 }),   // top
-                GetFaceVertices(Corners, new int[] { 4, 5, 1, 4, 1, 0 })    // bottom
+                GetFaceVertices(Corners, new int[] { 5, 1, 2, 5, 2, 6 }),   // right    ->  XPlus
+                GetFaceVertices(Corners, new int[] { 4, 0, 3, 4, 3, 7 }),   // left     ->  XMinus
+                GetFaceVertices(Corners, new int[] { 4, 5, 1, 4, 1, 0 }),   // bottom   ->  YPlus
+                GetFaceVertices(Corners, new int[] { 3, 2, 6, 3, 6, 7 }),   // top      ->  YMinus
+                GetFaceVertices(Corners, new int[] { 0, 1, 2, 0, 2, 3 }),   // front    ->  ZPlus
+                GetFaceVertices(Corners, new int[] { 4, 5, 6, 4, 6, 7 }),   // back     ->  ZMinus
             };
 
             Console.WriteLine("\tCreated Bounding Box  of size " + DimX.ToString("F3") + " x " + DimY.ToString("F3") + " x " + DimZ.ToString("F3") + ".");
+            Console.WriteLine("\t\tSurface area = " + GetBBoxTotalArea());
+            Console.WriteLine("\t\tFace areas = " + GetBBoxFaceArea(AAFace.XMinus) + ", " + GetBBoxFaceArea(AAFace.YMinus) + ", " + GetBBoxFaceArea(AAFace.ZMinus) + ".");
         }
 
         private Vector3 GetBoundingBoxCenter()
@@ -118,7 +120,7 @@ namespace TransRad
 
             // Surface areas
             AreaX = DimY * DimZ;
-            AreaY = DimY * DimZ;
+            AreaY = DimX * DimZ;
             AreaZ = DimX * DimY;
             AreaTotal = 2 * (AreaX + AreaY + AreaZ);
         }

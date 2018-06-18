@@ -71,8 +71,8 @@ end
 
 %% Disc
 
-dOffset = 0.1;
-D = dOffset + (0.01:0.01:4.9);
+dOffset = 0.2;
+D = dOffset;% + (0.01:0.01:4.9);
 
 DistVF = zeros(numel(D),2);
 
