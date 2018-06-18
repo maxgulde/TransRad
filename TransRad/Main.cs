@@ -7,7 +7,10 @@
  * 
  * Optimizations:
  * - Paraboloid-approach for comparison: http://cdn.imgtec.com/sdk-documentation/Dual+Paraboloid+Environment+Mapping.Whitepaper.pdf
- * - Optimization of transfer map for better matching with analytical results.
+ * - Submeshing of source surface for higher accuracy (e.g. 2 x 2 mesh or 3 x 3 mesh).
+ *      - Linear interpolation in between?
+ * ? Optimization of transfer map for better matching with analytical results.
+ *      - HemiCube is highly inhomogeneous: high density at 45 deg
  * 
  */
 
@@ -46,10 +49,6 @@ namespace TransRad
         int RadSourceIdx;
         int RadSourceFaceIdx;
         int RadTargetIdx;
-        int RadTargetFaceIdx;
-        bool f_IndicesInitalized = false;
-        bool f_ComputationEnded = true;
-        bool f_ComputeVFMatrix = false;
 
         // Performance
         Stopwatch StopWatchFPS;
@@ -67,8 +66,7 @@ namespace TransRad
         Dictionary<float, float> v_Results;
 
         // Results
-        List<ViewFactorPerFace> VFPerFace, VFReciprocal;
-        Dictionary<ViewFactorCoordinate, float> VFactors;
+        List<ViewFactorPerFace> VFPerFace;
 
         #endregion
 
@@ -116,10 +114,11 @@ namespace TransRad
             MouseOldPosition = Input.MousePosition;
 
             // Results
-            InitIndices();
+            InitSimulation();
             VFPerFace = new List<ViewFactorPerFace>();
-            VFReciprocal = new List<ViewFactorPerFace>();
-            VFactors = new Dictionary<ViewFactorCoordinate, float>();
+
+            Settings.f_ComputationRunning = false;
+            Settings.f_ComputeVFMatrix = false;
 
             // Start stopwatch
             StopWatchFPS = new Stopwatch();
@@ -128,12 +127,14 @@ namespace TransRad
             base.Initialize();
         }
 
-        private void InitIndices()
+        private void InitSimulation()
         {
+            // Indices
             RadSourceIdx = 0;
             RadSourceFaceIdx = 0;
             RadTargetIdx = 1;
-            RadTargetFaceIdx = 0;
+            // Results
+            VFPerFace = new List<ViewFactorPerFace>();
             Settings.f_ComputeArea = true;
         }
 
@@ -146,7 +147,7 @@ namespace TransRad
             // Loading assets
             Effect Effect = Content.Load<Effect>("Default");
             SEffect = Content.Load<Effect>("Default2D");
-            Model = new SatModel(Content.Load<Model>("TwoDiscs"), Effect, GraphicsDevice);
+            Model = new SatModel(Content.Load<Model>("simple_cube_sat"), Effect, GraphicsDevice);
             Font = Content.Load<SpriteFont>("Info");
             Pointer = Content.Load<Model>("Pointer");
             Pointer = Tools.ApplyCustomEffect(Pointer, Effect);
@@ -199,89 +200,82 @@ namespace TransRad
                     CamFree.Rotate(dRot.X * Settings.C_RotSpeedAz, dRot.Y * Settings.C_RotSpeedEl);
                 }
             }
+            float Zoom = 1.0f + Input.Scroll * Settings.C_ZoomSpeed;
+            if (Zoom != 1)
+            {
+                CamFree.Zoom(Zoom);
+            }
 
             #endregion
 
             #region simulation
 
-            if (Input.StartComputation)
-            {
-                f_ComputationEnded = false;
-                // Compute necessary number of calculations
-                MaxCalc = (int)Math.Pow(6, Model.Components.Count);
-                CurrentCalc = 0;
-                Console.Write("Calculating ");
-                SW.Restart();
-            }
-            if (!f_ComputationEnded)
+            if (Settings.f_ComputationRunning)
             {
                 Settings.f_ComputeArea = true;
                 Settings.f_DrawCompleteModel = false;
                 Settings.f_UseUniformMMap = false;
                 CurrentCalc++;
-                if (!f_IndicesInitalized)
+
+                // Next target
+                RadTargetIdx++;
+                // Same as source -> next target
+                if (RadTargetIdx == RadSourceIdx)
                 {
-                    InitIndices();
-                    VFactors = new Dictionary<ViewFactorCoordinate, float>();
-                    VFPerFace = new List<ViewFactorPerFace>();
-                    VFReciprocal = new List<ViewFactorPerFace>();
-                    f_IndicesInitalized = true;
-                    Settings.f_ComputationRunning = true;
+                    RadTargetIdx++;
                 }
-                else
+                // Last target -> next source face
+                if (RadTargetIdx >= Model.MeshNumber)
                 {
-                    // Select next face on source
-                    RadSourceFaceIdx++;
-                    // If last source face, next face on target
-                    if (RadSourceFaceIdx >= Tools.GetEnumValues<AAFace>().Count)
+                    RadTargetIdx = 0;
+                    // Same as source -> next target
+                    if (RadTargetIdx == RadSourceIdx)
                     {
-                        RadSourceFaceIdx = 0;
-                        RadTargetFaceIdx++;
-                    }
-                    // If last target face, next source
-                    if (RadTargetFaceIdx >= Tools.GetEnumValues<AAFace>().Count)
-                    {
-                        RadTargetFaceIdx = 0;
-                        RadSourceIdx++;
-                    }
-                    // If source same as target, next source
-                    if (RadSourceIdx == RadTargetIdx)
-                    {
-                        RadSourceIdx++;
-                    }
-                    // If last source, next target
-                    if (RadSourceIdx >= Model.MeshNumber)
-                    {
-                        RadSourceIdx = 0;
                         RadTargetIdx++;
                     }
-                    // If last target, end
-                    if (RadTargetIdx >= Model.MeshNumber)
-                    {
-                        InitIndices();
-                        f_ComputationEnded = true;
-                        Settings.f_ComputationRunning = false;
-                        Settings.f_ComputeArea = false;
-                        f_ComputeVFMatrix = true;
-                        Console.Write(" done (" + (SW.ElapsedMilliseconds / 1000.0f).ToString("F1", Settings.Format) + " s).");
-                        SW.Stop();
-                    }
+                    RadSourceFaceIdx++;
                 }
+                // Last source face, next source
+                if (RadSourceFaceIdx >= Tools.GetEnumValues<AAFace>().Count)
+                {
+                    RadSourceIdx++;
+                    RadSourceFaceIdx = 0;
+                }
+                // Last source -> end
+                if (RadSourceIdx >= Model.MeshNumber)
+                {
+                    Settings.f_ComputationRunning = false;
+                    Settings.f_ComputeVFMatrix = true;
+                    Settings.f_ComputeArea = false;
+                    Console.Write(" done (" + (SW.ElapsedMilliseconds / 1000.0f).ToString("F1", Settings.Format) + " s).");
+                    SW.Stop();
+                }
+            }
+
+            if (Input.StartComputation && !Settings.f_ComputationRunning)
+            {
+                // Init simulation state
+                InitSimulation();
+                Settings.f_ComputationRunning = true;
+                Settings.f_ComputeArea = true;
+
+                // Compute necessary number of calculations
+                MaxCalc = (int)Math.Pow(Model.Components.Count, 2) * Tools.GetEnumValues<AAFace>().Count;
+                CurrentCalc = 0;
+                Console.Write("Calculating ");
+                SW.Restart();
             }
 
             #endregion
 
             #region create view factor matrix
 
-            if (f_ComputeVFMatrix)
+            if (Settings.f_ComputeVFMatrix)
             {
-                Console.Write("Creating view factor matrix ...");
                 CreateVFMatrix();
-                Console.WriteLine(" done.");
 
-                Console.Write("Writing view factor matrix to file ...");
-                WriteMatrixToFile();
-                Console.WriteLine(" done.");
+                Settings.f_ComputeVFMatrix = false;
+                InitSimulation();
             }
 
             #endregion
@@ -314,12 +308,6 @@ namespace TransRad
                 {
                     Settings.f_ComputeArea = true;
                 }
-                if (Input.NextTargetFace)
-                {
-                    RadTargetFaceIdx++;
-                    RadTargetFaceIdx = RadTargetFaceIdx >= FaceList.Count ? 0 : RadTargetFaceIdx;
-                    Settings.f_ComputeArea = true;
-                }
                 if (Input.NextSourceFace)
                 {
                     RadSourceFaceIdx++;
@@ -330,7 +318,7 @@ namespace TransRad
                 {
                     RadTargetIdx++;
                     RadTargetIdx = RadTargetIdx >= Model.MeshNumber ? 0 : RadTargetIdx;
-                    RadTargetFaceIdx = 0;
+                    //RadTargetFaceIdx = 0;
                     Settings.f_ComputeArea = true;
                 }
                 if (Input.NextSource)
@@ -344,10 +332,6 @@ namespace TransRad
                     int temp = RadSourceIdx;
                     RadSourceIdx = RadTargetIdx;
                     RadTargetIdx = temp;
-
-                    temp = RadSourceFaceIdx;
-                    RadSourceFaceIdx = RadTargetFaceIdx;
-                    RadTargetFaceIdx = temp;
 
                     Settings.f_ComputeArea = true;
                 }
@@ -386,14 +370,6 @@ namespace TransRad
                         }
                     }
                 }
-                //if (Settings.f_ComputeArea)
-                //{
-                //    Settings.f_DrawCompleteModel = false;
-                //    Settings.f_UseUniformMMap = false;
-                //    //Console.WriteLine("Current RadTarget is <" + Model.Components[RadTargetIdx].Name + ">.");
-                //    //Console.WriteLine("Current RadSource is <" + Model.Components[RadSourceIdx].Name + ">.");
-                //    //Console.WriteLine("Current TargetFace is <" + FaceList[RadTargetFaceIdx].ToString() + ">.");
-                //}
             }
 
             #endregion
@@ -410,17 +386,16 @@ namespace TransRad
         protected override void Draw(GameTime gameTime)
         {
             AAFace SourceFace = FaceList[RadSourceFaceIdx];
-            AAFace TargetFace = FaceList[RadTargetFaceIdx];
 
             #region free view
 
-            if (f_ComputationEnded)
+            if (!Settings.f_ComputationRunning)
             {
                 GraphicsDevice.SetRenderTarget(RTFree);
                 GraphicsDevice.Clear(Color.White);
                 Model.DrawCompleteModel(CamFree, false, Color.Black, -1, true);
-                Model.Components[RadSourceIdx].DrawBoundingBoxFace(CamFree, SourceFace, Color.Orange);
-                Model.Components[RadTargetIdx].DrawBoundingBoxFace(CamFree, TargetFace, Color.Green);
+                Model.Components[RadSourceIdx].DrawBoundingBoxFace(CamFree, SourceFace, Color.Firebrick);
+                Model.Components[RadTargetIdx].DrawMesh(CamFree, Color.Green);
                 // Draw pointer
                 if (Settings.f_DrawPointer)
                 {
@@ -447,7 +422,7 @@ namespace TransRad
             #region hemicube view
 
             // Generate HemiCube textures
-            DrawHemiCubeTextures(SourceFace, Model.Components[RadSourceIdx], TargetFace);
+            DrawHemiCubeTextures(SourceFace, Model.Components[RadSourceIdx]);
             MergeHemiCubeTextures();
 
             // Apply transfer map
@@ -465,7 +440,7 @@ namespace TransRad
             SBatch.Begin();
 
             // Free view
-            if (f_ComputationEnded)
+            if (!Settings.f_ComputationRunning)
             {
                 SBatch.Draw(RTFree, RTFree.Bounds, Color.White);
             }
@@ -489,60 +464,10 @@ namespace TransRad
 
             #endregion
 
-            #region area computation
-
             if (Settings.f_ComputeArea)
             {
-                // Components
-                SatComponent Source = Model.Components[RadSourceIdx];
-                SatComponent Target = Model.Components[RadTargetIdx];
-                // Areas
-                float SourceArea = Source.GetBBoxTotalArea();
-                float SourceFaceArea = Source.GetBBoxFaceArea(SourceFace);
-                float TargetArea = Target.GetBBoxTotalArea();
-                float TargetFaceArea = Target.GetBBoxFaceArea(TargetFace);
-                float AreaRatioSource = SourceFaceArea / SourceArea;
-                float AreaRatioTarget = TargetFaceArea / TargetArea;
-                // View factor F_s->t
-                float Factor = GetPixelSum(RTViewFactor);
-                float FactorR = Factor * SourceFaceArea / TargetFaceArea;
-                // Area-weighted view factors
-                float WeightedFactor = Factor * AreaRatioSource * AreaRatioTarget;
-                float WeightedFactorR = FactorR * AreaRatioSource * AreaRatioTarget;
-                // Save results
-                string SourceName = Source.Name;
-                string TargetName = Target.Name;
-                VFPerFace.Add(new ViewFactorPerFace(SourceName, TargetName, SourceFace, TargetFace, WeightedFactor));
-                VFReciprocal.Add(new ViewFactorPerFace(TargetName, SourceName, TargetFace, SourceFace, FactorR));
-                // Text output
-                if (f_ComputationEnded || Settings.f_Verbose)
-                {
-                    Console.Write("From (" + SourceName + "," + SourceFace + ")");
-                    Console.WriteLine(" to (" + TargetName + "," + TargetFace + ")");
-                    Console.Write("\t Weighted view factor = " + WeightedFactor.ToString("F6", Settings.Format));
-                    Console.WriteLine(" (" + Factor.ToString("F3", Settings.Format) + ")");
-                    Console.Write("\t Reciprocal view factor = " + WeightedFactorR.ToString("F6", Settings.Format));
-                    Console.WriteLine(" (" + FactorR.ToString("F3", Settings.Format) + ")");
-                    Console.WriteLine("\t Source area ratio = " + AreaRatioSource.ToString("F4", Settings.Format));
-                    Console.WriteLine("\t Target area ratio = " + AreaRatioTarget.ToString("F4", Settings.Format));
-                }
-                Settings.f_ComputeArea = false;
-                // Save values for verification
-                if (f_StartVerification)
-                {
-                    v_Results.Add(v_StepNum * v_DistStep, Factor);
-                }
-                // Progress
-                if (!f_ComputationEnded)
-                {
-                    if ((CurrentCalc % (int)Math.Ceiling(MaxCalc / 10.0f)) == 0)
-                    {
-                        Console.Write('.');
-                    }
-                }
+                ComputeViewFactor();
             }
-
-            #endregion
 
             base.Draw(gameTime);
         }
@@ -567,7 +492,7 @@ namespace TransRad
             }
         }
 
-        void DrawHemiCubeTextures(AAFace radSourceFace, SatComponent radSource, AAFace radTargetFace)
+        void DrawHemiCubeTextures(AAFace radSourceFace, SatComponent radSource)
         {
             // Set camera position on radition source face
             Vector3 Position = radSource.GetFaceCenter(radSourceFace);
@@ -595,7 +520,8 @@ namespace TransRad
                     // Draw black bounding boxes for complete model
                     Model.DrawCompleteModel(CamHemiCube, true, Color.Black);
                     // Draw single bounding box face
-                    Model.Components[RadTargetIdx].DrawBoundingBoxFace(CamHemiCube, radTargetFace, Color.White);
+                    //Model.Components[RadTargetIdx].DrawBoundingBoxFace(CamHemiCube, radTargetFace, Color.White);
+                    Model.Components[RadTargetIdx].DrawMesh(CamHemiCube, Color.White);
                 }
             }
         }
@@ -773,6 +699,52 @@ namespace TransRad
 
         #region view factor computation
 
+        void ComputeViewFactor()
+        {
+            // Components
+            SatComponent Source = Model.Components[RadSourceIdx];
+            SatComponent Target = Model.Components[RadTargetIdx];
+            AAFace SourceFace = FaceList[RadSourceFaceIdx];
+            // Areas
+            float SourceArea = Source.GetBBoxTotalArea();
+            float SourceFaceArea = Source.GetBBoxFaceArea(SourceFace);
+            float TargetArea = Target.GetBBoxTotalArea();
+            float AreaRatioSource = SourceFaceArea / SourceArea;
+            // Adjust for large sources (since only looking from one position)
+            float AreaRatioSourceTarget = SourceArea / TargetArea > 1 ? SourceArea / TargetArea : 1;
+            // View factor F_s->t
+            float Factor = GetPixelSum(RTViewFactor) / AreaRatioSourceTarget;
+            // Area-weighted view factors
+            float WeightedFactor = Factor * AreaRatioSource;// * AreaRatioTarget;
+                                                            // Save results
+            string SourceName = Source.Name;
+            string TargetName = Target.Name;
+            VFPerFace.Add(new ViewFactorPerFace(SourceName, TargetName, SourceFace, WeightedFactor));
+            // Text output
+            if (!Settings.f_ComputationRunning || Settings.f_Verbose)
+            {
+                Console.Write("From (" + SourceName + "," + SourceFace + ")");
+                Console.WriteLine(" to (" + TargetName + ")");
+                Console.Write("\t Weighted view factor = " + WeightedFactor.ToString("F6", Settings.Format));
+                Console.WriteLine(" (" + Factor.ToString("F3", Settings.Format) + ")");
+                Console.WriteLine("\t Source area ratio = " + AreaRatioSource.ToString("F4", Settings.Format));
+            }
+            Settings.f_ComputeArea = false;
+            // Save values for verification
+            if (f_StartVerification)
+            {
+                v_Results.Add(v_StepNum * v_DistStep, Factor);
+            }
+            // Progress
+            if (Settings.f_ComputationRunning)
+            {
+                if ((CurrentCalc % (int)Math.Ceiling(MaxCalc / 10.0f)) == 0)
+                {
+                    Console.Write('.');
+                }
+            }
+        }
+
         float GetPixelSum(Texture2D tex)
         {
             int N = tex.Width * tex.Height;
@@ -788,14 +760,24 @@ namespace TransRad
             return Sum;
         }
 
+        #region generate output
+
         void CreateVFMatrix()
         {
-            // Compute component-to-component view factors for regular and reciprocal data.
-            //Dictionary<ViewFactorCoordinate, float> Regular = ComputeVFMatrix(VFPerFace);
-            //Dictionary<ViewFactorCoordinate, float> Reciprocal = ComputeVFMatrix(VFReciprocal);
-            //VFactors = FindInconsistencies(Regular, Reciprocal);
-            VFactors = ComputeVFMatrix(VFPerFace);
-            f_ComputeVFMatrix = false;
+            Console.Write("Creating view factor matrix ...");
+            Dictionary<ViewFactorCoordinate, float> VFactors = ComputeVFMatrix(VFPerFace);
+            Console.WriteLine(" done.");
+            
+            if (Settings.f_OptimizeVFByReciprocal)
+            {
+                Console.Write("Optimize view factor matrix ...");
+                VFactors = FindInconsistencies(VFactors);
+                Console.WriteLine(" done.");
+            }
+
+            Console.Write("Writing view factor matrix to file ...");
+            WriteMatrixToFile(VFactors);
+            Console.WriteLine(" done.");
         }
 
         Dictionary<ViewFactorCoordinate, float> ComputeVFMatrix(List<ViewFactorPerFace> vfList)
@@ -821,32 +803,53 @@ namespace TransRad
             return Results;
         }
 
-        Dictionary<ViewFactorCoordinate, float> FindInconsistencies(Dictionary<ViewFactorCoordinate, float> regular, Dictionary<ViewFactorCoordinate, float> reciprocal)
+        Dictionary<ViewFactorCoordinate, float> FindInconsistencies(Dictionary<ViewFactorCoordinate, float> toCheck)
         {
             Dictionary<ViewFactorCoordinate, float> Results = new Dictionary<ViewFactorCoordinate, float>();
-            foreach (KeyValuePair<ViewFactorCoordinate, float> p in regular)
+            foreach (KeyValuePair<ViewFactorCoordinate, float> p in toCheck)
             {
-                reciprocal.TryGetValue(p.Key, out float VFReciprocal);
-                if (p.Value == VFReciprocal)
+                // If zero value, check reciprocal
+                if (p.Value == 0)
                 {
-                    Results.Add(p.Key, p.Value);
+                    ViewFactorCoordinate CRec = p.Key.Swap();
+                    if (toCheck.TryGetValue(CRec, out float VFRec))
+                    {
+                        SatComponent Source = Model.Components.Find(x => string.Compare(x.Name, p.Key.SourceName, true) == 0);
+                        SatComponent Target = Model.Components.Find(x => string.Compare(x.Name, p.Key.TargetName, true) == 0);
+
+                        if (Source != null && Target != null)
+                        {
+                            float AreaSource = Source.GetBBoxTotalArea();
+                            float AreaTarget = Target.GetBBoxTotalArea();
+
+                            try
+                            {
+                                VFRec = AreaTarget / AreaSource * VFRec;
+                                if (Settings.f_Verbose)
+                                {
+                                    Console.WriteLine("\tChanging VF from " + p.Value.ToString("F4", Settings.Format) + " to " + VFRec.ToString("F4", Settings.Format));
+                                }
+                            }
+                            catch
+                            {
+                                VFRec = p.Value;
+                            }
+                        }
+                    }
+                    Results.Add(p.Key, VFRec);
                 }
                 else
                 {
-                    float VFMax = Math.Max(p.Value, VFReciprocal);
-                    if (VFReciprocal == VFMax)
-                    {
-                        Console.WriteLine("\t Found deviation for F(" + p.Key.SourceName + " -> " + p.Key.TargetName + "):");
-                        Console.WriteLine("\t\t VF was " + p.Value.ToString("F3", Settings.Format) + ", corrected it to " + VFMax.ToString("F3", Settings.Format) + ".");
-                    }
-                    Results.Add(p.Key, VFMax);
+                    Results.Add(p.Key, p.Value);
                 }
+                
             }
-
             return Results;
         }
 
-        void WriteMatrixToFile()
+        #endregion
+
+        void WriteMatrixToFile(Dictionary<ViewFactorCoordinate, float> results)
         {
             using (StreamWriter sw = new StreamWriter("matrix.txt"))
             {
@@ -862,24 +865,29 @@ namespace TransRad
                 // Write matrix
                 foreach (SatComponent source in Model.Components)
                 {
+                    float LineSum = 0;
                     foreach (SatComponent target in Model.Components)
                     {
-                        ViewFactorCoordinate C = new ViewFactorCoordinate(source.Name, target.Name);
                         if (source == target)
                         {
                             sw.Write("0");
                         }
                         else
                         {
-                            if(VFactors.TryGetValue(C, out float Factor))
+                            ViewFactorCoordinate C = new ViewFactorCoordinate(source.Name, target.Name);
+                            if(results.TryGetValue(C, out float Factor))
                             {
-                                sw.Write(Factor.ToString("F3", Settings.Format));
+                                sw.Write(Factor.ToString("F4", Settings.Format));
+                                LineSum += Factor;
                             }
                         }
                         sw.Write("\t");
                     }
                     sw.Write("\n");
+
+                    Console.WriteLine("Component <" + source.Name + "> radiates <" + LineSum.ToString("F3", Settings.Format) + ">.");
                 }
+                sw.Close();
             }
         }
         
@@ -894,13 +902,11 @@ namespace TransRad
         public float Factor { get; private set; }
 
         public AAFace SourceFace { get; private set; }
-        public AAFace TargetFace { get; private set; }
 
-        public ViewFactorPerFace(string sourceName, string targetName, AAFace sourceFace, AAFace targetFace,  float factor)
+        public ViewFactorPerFace(string sourceName, string targetName, AAFace sourceFace,  float factor)
         {
             Coordinate = new ViewFactorCoordinate(sourceName, targetName);
             Factor = factor;
-            TargetFace = targetFace;
             SourceFace = sourceFace;
         }
     }
@@ -914,6 +920,11 @@ namespace TransRad
         {
             SourceName = sourceName;
             TargetName = targetName;
+        }
+
+        public ViewFactorCoordinate Swap()
+        {
+            return new ViewFactorCoordinate(TargetName, SourceName);
         }
     }
 

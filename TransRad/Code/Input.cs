@@ -39,15 +39,7 @@ namespace TransRad
 
         #endregion
 
-        #region general
-
-        public static bool Exit
-        {
-            get
-            {
-                return Keyboard.GetState().IsKeyDown(Keys.Escape);
-            }
-        }
+        #region mouse
 
         public static bool ClickL
         {
@@ -65,11 +57,26 @@ namespace TransRad
             }
         }
 
-        public static bool NextTargetFace
+        public static int Scroll
         {
             get
             {
-                return Keyboard.GetState().IsKeyDown(Keys.T) && KeyDelay;
+                int MouseWheelPosNew = Mouse.GetState().ScrollWheelValue;
+                int Diff = MouseWheelPosNew - MouseWheelPosOld;
+                MouseWheelPosOld = MouseWheelPosNew;
+                return Diff;
+            }
+        }
+        
+        #endregion
+
+        #region keyboard
+
+        public static bool Exit
+        {
+            get
+            {
+                return Keyboard.GetState().IsKeyDown(Keys.Escape);
             }
         }
 
@@ -81,7 +88,7 @@ namespace TransRad
             }
         }
 
-        public static bool NextSource
+        public static bool NextTarget
         {
             get
             {
@@ -89,11 +96,19 @@ namespace TransRad
             }
         }
 
-        public static bool NextTarget
+        public static bool NextSource
         {
             get
             {
                 return (Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl)) && KeyDelay;
+            }
+        }
+
+        public static bool SwapSourceAndTarget
+        {
+            get
+            {
+                return Keyboard.GetState().IsKeyDown(Keys.Tab) && KeyDelay;
             }
         }
 

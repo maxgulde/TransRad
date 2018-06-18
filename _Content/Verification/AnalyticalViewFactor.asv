@@ -71,13 +71,13 @@ end
 
 %% Disc
 
-dOffset = 0.1;
-D = dOffset + (0.01:0.01:4.9);
+dOffset = 0.2;
+D = dOffset;% + (0.01:0.01:4.9);
 
 DistVF = zeros(numel(D),2);
 
-a = 0.2;    % Radius disc 1
-b = 1.0;    % Radius disc 2
+a = 1.0;    % Radius disc 1
+b = 0.2;    % Radius disc 2
 
 ii = 1;
 for d = D
@@ -87,7 +87,7 @@ for d = D
     X = 1 + (1 + R2^2)/R1^2;
     Y = X^2 - 4*(R2/R1)^2;
 
-    F_B = 0.5*(X - sqrt(Y));
+    F_B = 0.5*(X - sqrt(Y))
     
     DistVF(ii,1) = d;
     DistVF(ii,2) = F_B;

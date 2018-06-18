@@ -23,7 +23,7 @@ namespace TransRad
         public static int D_ViewportSize = D_ScreenWidth / 2;
         public static int D_PixelPerViewport = D_ViewportSize * D_ViewportSize;
         public static int D_FontPadding = 10;
-        public static float D_DefaultImageSize = 0.5f * 8f;
+        public static float D_DefaultImageSize = 2f;
         public static float D_PointerScale = 0.1f;
         public static int D_HemiCubeResolution = D_ScreenWidth / 4;
         public static float D_BBoxAlpha = 0.3f;
@@ -32,6 +32,7 @@ namespace TransRad
 
         public static float C_RotSpeedAz = 1;
         public static float C_RotSpeedEl = 1;
+        public static float C_ZoomSpeed = 0.0003f;
         public static float C_MaxAz = 360;
         public static float C_MaxEl = 89.999f;
         public static float C_NearPlane = 0.001f;
@@ -47,9 +48,11 @@ namespace TransRad
         public static bool f_ComputeArea = false;
         public static bool f_ComputationRunning = false;
         public static bool f_DrawCompleteModel = false;
+        public static bool f_ComputeVFMatrix = false;
         public static bool f_UseUniformMMap = false;
         public static bool f_Verbose = false;
         public static bool f_FindHCImageOrientation = false;
+        public static bool f_OptimizeVFByReciprocal = true;
 
         public static CultureInfo Format = new CultureInfo("en-us");
     }

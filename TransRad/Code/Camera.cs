@@ -113,6 +113,15 @@ namespace TransRad
             World = Matrix.CreateTranslation(0, 0, step);
         }
 
+        public void Zoom(float zoom)
+        {
+            if (!IsPerspective)
+            {
+                ImageSize *= zoom;
+                Update();
+            }
+        }
+
         #endregion
     }
 }

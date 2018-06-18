@@ -76,8 +76,8 @@ D = dOffset;% + (0.01:0.01:4.9);
 
 DistVF = zeros(numel(D),2);
 
-a = 0.2;    % Radius disc 1
-b = 1.0;    % Radius disc 2
+a = 1.0;    % Radius disc 1
+b = 0.2;    % Radius disc 2
 
 ii = 1;
 for d = D
